@@ -9,68 +9,51 @@ import requests
 st.set_page_config(page_title="Scyavuru Lead Manager", page_icon="🍯", layout="wide")
 
 COLORS = ["E6F2FF", "FFF2E6", "E6FFE6", "FFE6E6", "F2E6FF", "FFFFE6", "E6FFFF", "FFE6FF", "F0F0F0", "E6F9FF"]
-APOLLO_API_KEY = "gNGHsp8mMIyM2Pam5tvxVg"  # Chiave di Elisa
 
 st.title("🍯 Scyavuru Lead Manager Pro")
 st.markdown("Strumento aziendale per l'estrazione autonoma e la pulizia dei database GDO.")
 
-# --- UTILITY SCRAPING APOLLO ---
-def get_domain_from_company(company_name: str) -> str:
-    if not company_name or company_name == "Da verificare":
-        return None
-    key = company_name.lower().strip()
-    clean = re.sub(r'\b(s\.?p\.?a\.?|s\.?r\.?l\.?|group|italia|gmbh|ltd|inc)\b', '', key, flags=re.IGNORECASE)
-    clean = re.sub(r'[^a-z0-9]', '', clean.strip())
-    if clean and len(clean) > 3:
-        return f"{clean}.com"
-    return None
+# --- UTILITY SCRAPING APIFY ---
+def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_api_key: str):
+    if not apify_api_key:
+        raise ValueError("Inserisci la tua API Key di Apify per procedere.")
 
-def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apollo_api_key: str):
-    if not apollo_api_key:
-        raise ValueError("Inserisci la tua API Key di Apollo per procedere.")
+    from apify_client import ApifyClient
+    client = ApifyClient(apify_api_key)
 
-    url = "https://api.apollo.io/v1/mixed_people/search"
-    payload = {
-        "q_keywords": ruolo,
-        "person_locations": [location],
-        "per_page": min(max_profili, 100)
-    }
-    
+    search_query = ruolo
     if azienda:
-        domain = get_domain_from_company(azienda)
-        if domain:
-            payload["q_organization_domains"] = domain
+        search_query += f" {azienda}"
 
-    headers = {
-        "Cache-Control": "no-cache", 
-        "Content-Type": "application/json",
-        "X-Api-Key": apollo_api_key
+    run_input = {
+        "searchQuery": search_query,
+        "locations": [location],
+        "maxItems": min(max_profili, 1000),
+        "mode": "Full + email search"
     }
-    
-    response = requests.post(url, headers=headers, json=payload, timeout=20)
-    response.raise_for_status()
-    data = response.json()
-    
-    people = data.get("people", [])
-    results = []
 
-    for person in people[:max_profili]:
-        nome = f"{person.get('first_name', '')} {person.get('last_name', '')}".strip()
-        qualifica = person.get("title", "N/D")
-        org = person.get("organization", {})
-        co_name = org.get("name", "Da verificare") if org else "Da verificare"
-        linkedin_url = person.get("linkedin_url", "")
-        email = person.get("email", "Non trovata")
-        
+    run = client.actor("harvestapi/linkedin-profile-search").call(run_input=run_input)
+    items = client.dataset(run["defaultDatasetId"]).iterate_items()
+
+    results = []
+    for item in items:
+        nome = f"{item.get("firstName", "")} {item.get("lastName", "")}".strip()
+        qualifica = item.get("headline", "N/D")
+        co_name = item.get("company", "Da verificare")
+        linkedin_url = item.get("url", "")
+        email = item.get("email", "Non trovata")
+        if not email:
+            email = "Non trovata"
+
         results.append({
             "Categoria (Ricerca)": ruolo,
-            "Nome": nome.strip(),
+            "Nome": nome,
             "Qualifica": qualifica,
             "Azienda": co_name,
             "Email": email,
             "Link Profilo": linkedin_url
         })
-        
+
     return results
 
 # --- TABS ---
@@ -80,8 +63,10 @@ tab1, tab2 = st.tabs(["🔍 Estrazione Lead (Scraping)", "🧹 Pulizia Database 
 # TAB 1: ESTRAZIONE (SCRAPING)
 # ----------------------------------------------------
 with tab1:
-    st.header("Estrazione Autonoma da LinkedIn (via Apollo)")
+    st.header("Estrazione Autonoma da LinkedIn (via Apify)")
     st.markdown("Usa questo strumento per cercare nuovi contatti. Inserisci la qualifica, il paese e l'API Key.")
+    
+    apify_key_input = st.text_input("🔑 API Key di Apify", type="password", help="Inserisci il token segreto di Apify per autorizzare l'estrazione.")
     
     col_a, col_b = st.columns(2)
     with col_a:
@@ -95,7 +80,7 @@ with tab1:
     if st.button("🛰️ Avvia Scraping"):
         with st.spinner('Scraping in corso... Ricerca profili e aggiramento blocchi...'):
             try:
-                risultati = run_search(ruolo_input, azienda_input, location_input, max_profili_input, APOLLO_API_KEY)
+                risultati = run_search(ruolo_input, azienda_input, location_input, max_profili_input, apify_key_input)
                 if risultati:
                     df_scraping = pd.DataFrame(risultati)
                     st.success(f"Trovati {len(risultati)} profili!")

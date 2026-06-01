@@ -93,28 +93,28 @@ with tab1:
         with st.spinner('Scraping in corso... Ricerca profili e aggiramento blocchi...'):
             try:
                 risultati = run_search(ruolo_input, azienda_input, location_input, max_profili_input, APOLLO_API_KEY)
-                    if risultati:
-                        df_scraping = pd.DataFrame(risultati)
-                        st.success(f"Trovati {len(risultati)} profili!")
-                        st.dataframe(df_scraping)
-                        
-                        # Export Excel Base
-                        output_scraping = io.BytesIO()
-                        with pd.ExcelWriter(output_scraping, engine="openpyxl") as writer:
-                            df_scraping.to_excel(writer, index=False, sheet_name="Estrazione")
-                        output_scraping.seek(0)
-                        
-                        st.download_button(
-                            label="📥 Scarica Excel Grezzo",
-                            data=output_scraping,
-                            file_name=f"Estrazione_{ruolo_input.replace(' ', '_')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            type="secondary"
-                        )
-                    else:
-                        st.info("Nessun profilo trovato con questi criteri.")
-                except Exception as e:
-                    st.error(f"Errore durante lo scraping: {e}")
+                if risultati:
+                    df_scraping = pd.DataFrame(risultati)
+                    st.success(f"Trovati {len(risultati)} profili!")
+                    st.dataframe(df_scraping)
+                    
+                    # Export Excel Base
+                    output_scraping = io.BytesIO()
+                    with pd.ExcelWriter(output_scraping, engine="openpyxl") as writer:
+                        df_scraping.to_excel(writer, index=False, sheet_name="Estrazione")
+                    output_scraping.seek(0)
+                    
+                    st.download_button(
+                        label="📥 Scarica Excel Grezzo",
+                        data=output_scraping,
+                        file_name=f"Estrazione_{ruolo_input.replace(' ', '_')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        type="secondary"
+                    )
+                else:
+                    st.info("Nessun profilo trovato con questi criteri.")
+            except Exception as e:
+                st.error(f"Errore durante lo scraping: {e}")
 
 # ----------------------------------------------------
 # TAB 2: PULIZIA (DEEP CLEANING)

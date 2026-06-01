@@ -31,7 +31,6 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apollo
 
     url = "https://api.apollo.io/v1/mixed_people/search"
     payload = {
-        "api_key": apollo_api_key,
         "q_keywords": ruolo,
         "person_locations": [location],
         "per_page": min(max_profili, 100)
@@ -42,7 +41,11 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apollo
         if domain:
             payload["q_organization_domains"] = domain
 
-    headers = {"Cache-Control": "no-cache", "Content-Type": "application/json"}
+    headers = {
+        "Cache-Control": "no-cache", 
+        "Content-Type": "application/json",
+        "X-Api-Key": apollo_api_key
+    }
     
     response = requests.post(url, headers=headers, json=payload, timeout=20)
     response.raise_for_status()

@@ -221,3 +221,4 @@ with tab2:
                     
                 except Exception as e:
                     st.error(f"Errore durante l'elaborazione: {e}")
+

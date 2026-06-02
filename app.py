@@ -11,18 +11,16 @@ st.set_page_config(page_title="Scyavuru Lead Manager", page_icon="🍯", layout=
 
 COLORS = ["E6F2FF", "FFF2E6", "E6FFE6", "FFE6E6", "F2E6FF", "FFFFE6", "E6FFFF", "FFE6FF", "F0F0F0", "E6F9FF"]
 
-# Competitor pre-caricati (slug LinkedIn — modificabili dall'utente nell'UI)
-# NOTA: lo slug per i POST può differire da quello usato per le reactions (Tab 3).
-# Formato testato e verificato con harvestapi/linkedin-company-posts.
-# linkedin_posts=False → pagina LinkedIn company NON trovata, Tab 4 la salta.
+# Competitor pre-caricati — slug verificati su LinkedIn ufficiale + testati con Apify.
+# linkedin_posts=False → 0 post restituiti dall'actor (pagina non supportata o nessun post pubblico).
 DEFAULT_COMPETITORS = [
-    {"nome": "Fiasconaro",       "slug": "fiasconaro-s.r.l.",  "linkedin_posts": True},
-    {"nome": "Pisti by Nutcao", "slug": "pisti-by-nutcao",    "linkedin_posts": False},  # nessuna pagina LinkedIn trovata
-    {"nome": "Marullo",          "slug": "marullo-spa",         "linkedin_posts": True},
-    {"nome": "Damiani",          "slug": "damiani",             "linkedin_posts": True},
-    {"nome": "Vasetto.it",       "slug": "vasetto-it",          "linkedin_posts": False}, # nessuna pagina LinkedIn trovata
-    {"nome": "Bacco",            "slug": "bacco-srl",           "linkedin_posts": False}, # nessuna pagina LinkedIn trovata
-    {"nome": "Bronte Dolci",     "slug": "bronte-dolci",        "linkedin_posts": False}, # nessuna pagina LinkedIn trovata
+    {"nome": "Fiasconaro",   "slug": "fiasconaro-s.r.l.", "linkedin_posts": True},   # ✅ verificato
+    {"nome": "Pistì",        "slug": "pistì",             "linkedin_posts": True},   # ✅ verificato
+    {"nome": "Marullo",      "slug": "marullo-spa",       "linkedin_posts": True},   # ✅ verificato
+    {"nome": "Vasetto.it",   "slug": "vasetto",           "linkedin_posts": False},  # pagina esiste ma 0 post (scraper bloccato)
+    {"nome": "Bacco",        "slug": "baccosrl",          "linkedin_posts": False},  # pagina esiste ma 0 post (scraper bloccato)
+    {"nome": "Bronte Dolci", "slug": "pistacchio-di-bronte-biologico", "linkedin_posts": False,
+                              "showcase": True},  # pagina /showcase/ non supportata dall'actor
 ]
 
 st.title("🍯 Scyavuru Lead Manager Pro")
@@ -320,7 +318,8 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
 
 # --- FUNZIONI COMPETITOR ANALYSIS ---
 def run_competitor_posts(company_slug: str, max_posts: int = 10,
-                         cutoff_date: str = None, apify_api_key: str = None) -> list:
+                         cutoff_date: str = None, apify_api_key: str = None,
+                         showcase: bool = False) -> list:
     """Scarica i post recenti di una company LinkedIn tramite HarvestAPI.
     Restituisce lista di dict con postUrl, testo, engagement.
     Se cutoff_date (formato 'YYYY-MM-DD') è fornita, esclude i post antecedenti.
@@ -336,7 +335,11 @@ def run_competitor_posts(company_slug: str, max_posts: int = 10,
     from datetime import datetime
     client = ApifyClient(apify_api_key)
 
-    company_url = f"https://www.linkedin.com/company/{company_slug}/"
+    # Le pagine /showcase/ usano un URL diverso da /company/
+    if showcase:
+        company_url = f"https://www.linkedin.com/showcase/{company_slug}/"
+    else:
+        company_url = f"https://www.linkedin.com/company/{company_slug}/"
     run_input = {
         "companyUrls": [company_url],
         "maxPosts": max_posts,
@@ -1074,8 +1077,9 @@ with tab4:
         for i, comp in enumerate(st.session_state.competitors):
             if st.session_state.get(f"pe_active_{i}", True) and comp.get("linkedin_posts", True):
                 pe_active.append({
-                    "nome": comp["nome"],
-                    "slug": comp["slug"],
+                    "nome":     comp["nome"],
+                    "slug":     comp["slug"],
+                    "showcase": comp.get("showcase", False),
                 })
         # Avvisa per i competitor senza LinkedIn
         no_li = [c["nome"] for c in st.session_state.competitors if not c.get("linkedin_posts", True)]
@@ -1095,7 +1099,8 @@ with tab4:
                                      text=f"📡 Scaricando post di {comp['nome']} ({ci+1}/{len(pe_active)})...")
                 try:
                     posts = run_competitor_posts(
-                        comp["slug"], max_posts=pe_max_posts, cutoff_date=pe_cutoff
+                        comp["slug"], max_posts=pe_max_posts, cutoff_date=pe_cutoff,
+                        showcase=comp.get("showcase", False)
                     )
                     for p in posts:
                         p["Competitor"] = comp["nome"]

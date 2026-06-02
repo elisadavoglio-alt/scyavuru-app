@@ -14,14 +14,15 @@ COLORS = ["E6F2FF", "FFF2E6", "E6FFE6", "FFE6E6", "F2E6FF", "FFFFE6", "E6FFFF", 
 # Competitor pre-caricati (slug LinkedIn — modificabili dall'utente nell'UI)
 # NOTA: lo slug per i POST può differire da quello usato per le reactions (Tab 3).
 # Formato testato e verificato con harvestapi/linkedin-company-posts.
+# linkedin_posts=False → pagina LinkedIn company NON trovata, Tab 4 la salta.
 DEFAULT_COMPETITORS = [
-    {"nome": "Fiasconaro",       "slug": "fiasconaro-s.r.l."},
-    {"nome": "Pisti by Nutcao", "slug": "pisti-by-nutcao"},
-    {"nome": "Marullo",          "slug": "marullo-sicily"},
-    {"nome": "Damiani",          "slug": "damiani"},
-    {"nome": "Vasetto.it",       "slug": "vasetto-it"},
-    {"nome": "Bacco",            "slug": "bacco-srl"},
-    {"nome": "Bronte Dolci",     "slug": "bronte-dolci"},
+    {"nome": "Fiasconaro",       "slug": "fiasconaro-s.r.l.",  "linkedin_posts": True},
+    {"nome": "Pisti by Nutcao", "slug": "pisti-by-nutcao",    "linkedin_posts": False},  # nessuna pagina LinkedIn trovata
+    {"nome": "Marullo",          "slug": "marullo-spa",         "linkedin_posts": True},
+    {"nome": "Damiani",          "slug": "damiani",             "linkedin_posts": True},
+    {"nome": "Vasetto.it",       "slug": "vasetto-it",          "linkedin_posts": False}, # nessuna pagina LinkedIn trovata
+    {"nome": "Bacco",            "slug": "bacco-srl",           "linkedin_posts": False}, # nessuna pagina LinkedIn trovata
+    {"nome": "Bronte Dolci",     "slug": "bronte-dolci",        "linkedin_posts": False}, # nessuna pagina LinkedIn trovata
 ]
 
 st.title("🍯 Scyavuru Lead Manager Pro")
@@ -1021,18 +1022,21 @@ with tab4:
     if "competitors" not in st.session_state:
         st.session_state.competitors = [dict(c) for c in DEFAULT_COMPETITORS]
 
-    st.caption("Stessi competitor configurati nel Tab 3. Attiva/disattiva quelli che vuoi analizzare.")
+    st.caption("Attiva/disattiva i competitor da analizzare. I competitor senza pagina LinkedIn ufficiale sono marcati 🚫 e disattivati.")
     pe_cols = st.columns([2, 3, 1])
     pe_cols[0].markdown("**Competitor**")
     pe_cols[1].markdown("**Slug LinkedIn**")
     pe_cols[2].markdown("**Attivo**")
     for i, comp in enumerate(st.session_state.competitors):
+        has_li = comp.get("linkedin_posts", True)
         c1, c2, c3 = st.columns([2, 3, 1])
-        c1.text_input(f"pe_nome_{i}", value=st.session_state.get(f"comp_nome_{i}", comp["nome"]),
+        label_display = comp["nome"] if has_li else f"🚫 {comp['nome']}"
+        c1.text_input(f"pe_nome_{i}", value=label_display,
                       label_visibility="collapsed", disabled=True)
-        c2.text_input(f"pe_slug_{i}", value=st.session_state.get(f"comp_slug_{i}", comp["slug"]),
+        c2.text_input(f"pe_slug_{i}", value=comp["slug"] if has_li else "(nessuna pagina LinkedIn)",
                       label_visibility="collapsed", disabled=True)
-        c3.checkbox("on", value=True, label_visibility="collapsed", key=f"pe_active_{i}")
+        c3.checkbox("on", value=has_li, label_visibility="collapsed",
+                    key=f"pe_active_{i}", disabled=not has_li)
 
     # --- PARAMETRI ---
     st.markdown("### 2️⃣ Parametri")
@@ -1068,11 +1072,15 @@ with tab4:
 
         pe_active = []
         for i, comp in enumerate(st.session_state.competitors):
-            if st.session_state.get(f"pe_active_{i}", True):
+            if st.session_state.get(f"pe_active_{i}", True) and comp.get("linkedin_posts", True):
                 pe_active.append({
-                    "nome": st.session_state.get(f"comp_nome_{i}", comp["nome"]),
-                    "slug": st.session_state.get(f"comp_slug_{i}", comp["slug"]),
+                    "nome": comp["nome"],
+                    "slug": comp["slug"],
                 })
+        # Avvisa per i competitor senza LinkedIn
+        no_li = [c["nome"] for c in st.session_state.competitors if not c.get("linkedin_posts", True)]
+        if no_li:
+            st.info(f"ℹ️ Esclusi perché senza pagina LinkedIn ufficiale: **{', '.join(no_li)}**")
 
         if not pe_active:
             st.warning("Seleziona almeno un competitor.")

@@ -302,20 +302,23 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
 
 
 # --- FUNZIONI COMPETITOR ANALYSIS ---
-def run_competitor_posts(company_slug: str, max_posts: int = 10, apify_api_key: str = None) -> list:
+def run_competitor_posts(company_slug: str, max_posts: int = 10,
+                         cutoff_date: str = None, apify_api_key: str = None) -> list:
     """Scarica i post recenti di una company LinkedIn tramite HarvestAPI.
     Restituisce lista di dict con postUrl, testo, engagement.
+    Se cutoff_date (formato 'YYYY-MM-DD') è fornita, esclude i post antecedenti.
     """
     if not apify_api_key:
         apify_api_key = APIFY_API_KEY
     from apify_client import ApifyClient
+    from datetime import datetime
     client = ApifyClient(apify_api_key)
 
     company_url = f"https://www.linkedin.com/company/{company_slug}/"
     run_input = {
         "companyUrls": [company_url],
         "maxPosts": max_posts,
-        "scrapeReactions": False,   # le reactions le prendiamo a parte
+        "scrapeReactions": False,
         "scrapeComments": False,
     }
     try:
@@ -328,12 +331,22 @@ def run_competitor_posts(company_slug: str, max_posts: int = 10, apify_api_key: 
                 continue
             text_raw = item.get("text") or item.get("content") or ""
             snippet = text_raw[:120].replace("\n", " ") + ("..." if len(text_raw) > 120 else "")
+            date_str = str(item.get("postedAt") or item.get("date") or "")[:10]
+
+            # Filtro temporale: salta post antecedenti alla data di cutoff
+            if cutoff_date and date_str:
+                try:
+                    if datetime.strptime(date_str, "%Y-%m-%d") < datetime.strptime(cutoff_date, "%Y-%m-%d"):
+                        continue
+                except ValueError:
+                    pass  # data non parsabile: includi il post
+
             posts.append({
                 "postUrl": post_url,
                 "snippet": snippet,
                 "likes": item.get("likesCount") or item.get("likes") or 0,
                 "comments": item.get("commentsCount") or item.get("comments") or 0,
-                "date": str(item.get("postedAt") or item.get("date") or "")[:10],
+                "date": date_str,
             })
         return posts
     except Exception as e:
@@ -477,98 +490,132 @@ with tab1:
 # TAB 2: PULIZIA (DEEP CLEANING)
 # ----------------------------------------------------
 with tab2:
-    st.header("Pulizia e Formattazione File")
-    st.markdown("Carica qui i file grezzi per rimuovere i fuori target, eliminare i duplicati e creare l'Excel Colorato.")
-    
-    uploaded_file = st.file_uploader("1️⃣ Carica l'estrazione grezza (Excel)", type=["xlsx"])
+    st.header("🧹 Pulizia e Formattazione File Esterni")
+    st.markdown(
+        "Carica un Excel esistente (da altre fonti, CRM, estrazioni precedenti): "
+        "deduplica i contatti, applica filtri booleani e genera l'Excel colorato per categoria."
+    )
 
-    st.markdown("### 2️⃣ Impostazioni di Filtraggio")
-    col1, col2 = st.columns(2)
+    uploaded_file = st.file_uploader("1️⃣ Carica il file da pulire (Excel .xlsx)", type=["xlsx"])
 
-    with col1:
-        whitelist_input = st.text_area(
-            "Parole Chiave OBBLIGATORIE (Whitelist)", 
-            value="supermercato, ipermercato, discount, grocery, gdo, conad, coop, esselunga, carrefour, lidl, eurospin, md, penny, crai, selex, pam, despar, aldi, tigros, vege, food, alimentare, dolci, confectionery, biscott, fmcg, horeca, gastronomia, retail, cash & carry",
-            height=150
+    st.markdown("### 2️⃣ Filtri (opzionali)")
+    col_t2a, col_t2b = st.columns(2)
+    with col_t2a:
+        t2_must_include = st.text_input(
+            "✅ DEVE contenere (AND/OR)",
+            value="",
+            placeholder="es: buyer + food, category manager, gdo",
+            key="t2_include",
+            help="Lascia vuoto per non filtrare. Virgola = OR, '+' = AND."
+        )
+    with col_t2b:
+        t2_must_exclude = st.text_input(
+            "🚫 NON DEVE contenere (NOT)",
+            value="",
+            placeholder="es: marketing, hr, tech, immobiliare",
+            key="t2_exclude",
+            help="Profili con queste parole vengono rimossi."
         )
 
-    with col2:
-        blacklist_input = st.text_area(
-            "Settori da CANCELLARE (Blacklist)", 
-            value="immobiliare, real estate, bank, banca, assicurazion, insurance, fashion, abbigliamento, software, it, tech, technology, hotel, tourism, turismo, automotive, auto, telecom, medical, farma, pharma, hr, recruiting, legal, avvocato, construction, costruzioni, edilizia, elettrotecnica, furniture, arredamento, energia, energy, renewable, logistica, packaging, plastic, metal, steel, electronic, brico, fai da te, design, architett, media, marketing, formazion, scuola, clinic, hospital",
-            height=150
-        )
+    t2_drop_email = st.checkbox(
+        "🗑️ Rimuovi colonna Email (utile per GDPR / invio a terzi)",
+        value=False
+    )
 
     if uploaded_file is not None:
-        if st.button("🚀 Avvia Purificazione e Formattazione", type="primary"):
-            with st.spinner('Analisi in corso...'):
+        if st.button("🚀 Avvia Pulizia e Formattazione", type="primary"):
+            with st.spinner("Analisi in corso..."):
                 try:
                     xls = pd.ExcelFile(uploaded_file)
                     df_list = []
                     for sheet in xls.sheet_names:
                         df = pd.read_excel(xls, sheet_name=sheet)
-                        if 'Categoria (Ricerca)' not in df.columns:
-                            df['Categoria (Ricerca)'] = sheet
+                        if "Categoria (Ricerca)" not in df.columns:
+                            df["Categoria (Ricerca)"] = sheet
                         df_list.append(df)
-                        
+
                     df_tot = pd.concat(df_list, ignore_index=True)
                     original_len = len(df_tot)
-                    
-                    whitelist = [x.strip().lower() for x in whitelist_input.split(',')]
-                    blacklist = [x.strip().lower() for x in blacklist_input.split(',')]
-                    
-                    wl_regex = re.compile('|'.join([rf'\b{w}\b' for w in whitelist if w]), re.IGNORECASE)
-                    bl_regex = re.compile('|'.join([rf'\b{w}\b' for w in blacklist if w]), re.IGNORECASE)
-                    
-                    valid_rows = []
-                    for idx, row in df_tot.iterrows():
-                        azienda = str(row.get('Azienda', '')).lower()
-                        qualifica = str(row.get('Qualifica', '')).lower()
-                        text_to_check = f"{azienda} {qualifica}"
-                        
-                        if bl_regex.search(text_to_check):
-                            continue
-                        if wl_regex.search(text_to_check):
-                            valid_rows.append(row)
-                            
-                    df_clean = pd.DataFrame(valid_rows)
-                    
-                    # Rimuove solo la colonna Email (non Score/Fonte) — il tab Pulizia lavora su file già puliti
-                    cols_to_drop = [c for c in df_clean.columns if c.lower() == 'email']
-                    df_clean.drop(columns=cols_to_drop, inplace=True, errors='ignore')
-                    
-                    df_clean['Nome_str'] = df_clean.get('Nome', '').astype(str).str.strip().str.title()
-                    df_clean['Cognome_str'] = df_clean.get('Cognome', '').astype(str).str.strip().str.title()
-                    if 'Link Profilo' in df_clean.columns:
-                        df_clean = df_clean.drop_duplicates(subset=['Link Profilo'])
-                    df_clean = df_clean.drop_duplicates(subset=['Nome_str', 'Cognome_str'])
-                    df_clean.drop(columns=['Nome_str', 'Cognome_str'], inplace=True, errors='ignore')
-                    
+
+                    # Filtri booleani (riuso funzione modulo)
+                    df_clean = _apply_boolean_filters(df_tot, t2_must_include, t2_must_exclude)
+                    after_filter = len(df_clean)
+
+                    # Rimuovi email se richiesto
+                    if t2_drop_email:
+                        cols_to_drop = [c for c in df_clean.columns if c.lower() == "email"]
+                        df_clean.drop(columns=cols_to_drop, inplace=True, errors="ignore")
+
+                    # Deduplicazione per link profilo e per nome
+                    if "Link Profilo" in df_clean.columns:
+                        df_clean = df_clean.drop_duplicates(subset=["Link Profilo"])
+                    df_clean["_nome_norm"] = df_clean.get("Nome", pd.Series(dtype=str)).astype(str).str.strip().str.title()
+                    df_clean = df_clean.drop_duplicates(subset=["_nome_norm"])
+                    df_clean.drop(columns=["_nome_norm"], inplace=True, errors="ignore")
+                    df_clean = df_clean.reset_index(drop=True)
+
                     final_len = len(df_clean)
-                    st.success(f"✅ Operazione Completata! Contatti originali: {original_len} | Contatti perfetti: {final_len} | Eliminati: {original_len - final_len}")
-                    
+                    rimossi = original_len - final_len
+
+                    col_m1, col_m2, col_m3 = st.columns(3)
+                    col_m1.metric("📋 Originali", original_len)
+                    col_m2.metric("✅ Dopo filtri + dedup", final_len)
+                    col_m3.metric("🗑️ Eliminati", rimossi)
+
+                    # Excel formattato con colori per categoria
                     wb = Workbook()
                     ws = wb.active
                     ws.title = "Database GDO"
-                    
+
+                    header_font  = Font(bold=True, color="FFFFFF", size=11)
+                    header_fill  = PatternFill(start_color="2E4053", end_color="2E4053", fill_type="solid")
+                    header_align = Alignment(horizontal="center", vertical="center")
+                    thin_b = Border(
+                        left=Side(style="thin", color="CCCCCC"),
+                        right=Side(style="thin", color="CCCCCC"),
+                        top=Side(style="thin", color="CCCCCC"),
+                        bottom=Side(style="thin", color="CCCCCC"),
+                    )
+
                     cols = list(df_clean.columns)
+                    ws.row_dimensions[1].height = 28
                     for c_idx, col_name in enumerate(cols, 1):
-                        ws.cell(row=1, column=c_idx, value=col_name).font = Font(bold=True)
-                        
-                    categorie = df_clean['Categoria (Ricerca)'].unique() if 'Categoria (Ricerca)' in df_clean.columns else []
-                    cat_color_map = {cat: PatternFill(start_color=COLORS[i % len(COLORS)], end_color=COLORS[i % len(COLORS)], fill_type="solid") for i, cat in enumerate(categorie)}
-                    
+                        cell = ws.cell(row=1, column=c_idx, value=col_name)
+                        cell.font = header_font
+                        cell.fill = header_fill
+                        cell.alignment = header_align
+                        cell.border = thin_b
+
+                    categorie = df_clean["Categoria (Ricerca)"].unique() if "Categoria (Ricerca)" in df_clean.columns else []
+                    cat_color_map = {
+                        cat: PatternFill(start_color=COLORS[i % len(COLORS)], end_color=COLORS[i % len(COLORS)], fill_type="solid")
+                        for i, cat in enumerate(categorie)
+                    }
+                    link_idx = cols.index("Link Profilo") + 1 if "Link Profilo" in cols else None
+
                     for r_idx, row_list in enumerate(df_clean.values.tolist(), 2):
-                        cat_value = row_list[cols.index('Categoria (Ricerca)')] if 'Categoria (Ricerca)' in cols else None
+                        cat_value = row_list[cols.index("Categoria (Ricerca)")] if "Categoria (Ricerca)" in cols else None
                         for c_idx, value in enumerate(row_list, 1):
                             cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                            cell.border = thin_b
+                            cell.alignment = Alignment(vertical="center")
                             if cat_value and cat_value in cat_color_map:
                                 cell.fill = cat_color_map[cat_value]
-                                
+                            if link_idx and c_idx == link_idx and value:
+                                cell.hyperlink = str(value)
+                                cell.font = Font(color="1155CC", underline="single")
+
+                    # Larghezze auto
+                    for c_idx, col_name in enumerate(cols, 1):
+                        col_data = [str(col_name)] + [str(v) if v else "" for v in df_clean.iloc[:, c_idx - 1]]
+                        ws.column_dimensions[get_column_letter(c_idx)].width = min(max(len(s) for s in col_data), 50) + 2
+
+                    ws.freeze_panes = "A2"
+
                     output = io.BytesIO()
                     wb.save(output)
                     output.seek(0)
-                    
+
                     st.download_button(
                         label="📥 SCARICA EXCEL PULITO E COLORATO",
                         data=output,
@@ -576,9 +623,11 @@ with tab2:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         type="primary"
                     )
-                    
+
                 except Exception as e:
                     st.error(f"Errore durante l'elaborazione: {e}")
+
+
 
 
 # ----------------------------------------------------
@@ -630,17 +679,31 @@ with tab3:
 
     # --- PARAMETRI ---
     st.markdown("### 2️⃣ Parametri di estrazione")
-    col_p1, col_p2 = st.columns(2)
+    col_p1, col_p2, col_p3 = st.columns(3)
     with col_p1:
         max_posts_comp = st.slider(
-            "📄 Post per azienda (ultimi N)", min_value=3, max_value=30, value=10,
-            help="Più post = più lead ma più tempo e costo API."
+            "📄 Post per azienda (ultimi N)", min_value=5, max_value=50, value=20,
+            help="Scarica gli N post più recenti, poi filtra per data. Metti un numero alto per coprire il periodo scelto."
         )
     with col_p2:
         max_reactions_comp = st.slider(
             "👥 Max reazioni per post", min_value=10, max_value=200, value=50,
             help="LinkedIn espone max ~1200 reazioni per post."
         )
+    with col_p3:
+        mesi_indietro = st.selectbox(
+            "📅 Periodo post",
+            options=[1, 2, 3, 6, 12],
+            index=0,
+            format_func=lambda x: "Ultimo mese" if x == 1 else f"Ultimi {x} mesi",
+            help="Vengono analizzate solo le reactions su post pubblicati in questo periodo."
+        )
+
+    # Calcola data di cutoff e mostrala
+    from datetime import datetime, timedelta
+    cutoff_date_comp = (datetime.today() - timedelta(days=30 * mesi_indietro)).strftime("%Y-%m-%d")
+    st.caption(f"🗓️ Periodo analisi: **{cutoff_date_comp}** → oggi. Post antecedenti vengono ignorati (zero costo reactions).")
+
 
     # --- FILTRI BOOLEANI (riuso funzione modulo) ---
     with st.expander("🔬 Filtri Booleani Avanzati (AND / OR / NOT)", expanded=False):
@@ -661,10 +724,14 @@ with tab3:
                 key="comp_exclude"
             )
 
+    n_comp = len([i for i in range(len(st.session_state.get('competitors', DEFAULT_COMPETITORS)))
+                   if st.session_state.get(f'comp_active_{i}', True)])
     st.info(
-        "💡 **Stima costo:** ~$0.002 per post + ~$0.002 per reazione. "
-        f"Con {max_posts_comp} post × {max_reactions_comp} reazioni × 7 competitor = "
-        f"**~${round(7 * max_posts_comp * 0.002 + 7 * max_posts_comp * max_reactions_comp * 0.002, 2)}**"
+        f"💡 **Stima costo (ultimi {mesi_indietro} {'mese' if mesi_indietro == 1 else 'mesi'}):** "
+        f"~$0.002/post + ~$0.002/reazione. "
+        f"Con {max_posts_comp} post × {max_reactions_comp} reazioni × {n_comp} competitor attivi = "
+        f"**~${round(n_comp * max_posts_comp * 0.002 + n_comp * max_posts_comp * max_reactions_comp * 0.002, 2)}** max"
+        " (meno se ci sono pochi post nel periodo scelto)"
     )
 
     if st.button("🚀 Avvia Analisi Competitor", type="primary"):
@@ -694,8 +761,13 @@ with tab3:
 
                 try:
                     # Step 1: scarica i post
-                    status_placeholder.info(f"🔍 Scaricando post di **{comp['nome']}**...")
-                    posts = run_competitor_posts(comp["slug"], max_posts=max_posts_comp)
+                    status_placeholder.info(
+                        f"🔍 Scaricando post di **{comp['nome']}** (ultimi {mesi_indietro} "
+                        f"{'mese' if mesi_indietro == 1 else 'mesi'}, da {cutoff_date_comp})..."
+                    )
+                    posts = run_competitor_posts(
+                        comp["slug"], max_posts=max_posts_comp, cutoff_date=cutoff_date_comp
+                    )
                     total_posts_found += len(posts)
 
                     # Step 2: per ogni post, scarica le reazioni

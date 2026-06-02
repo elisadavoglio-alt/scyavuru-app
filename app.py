@@ -355,12 +355,31 @@ def run_competitor_posts(company_slug: str, max_posts: int = 10,
                 except ValueError:
                     pass  # data non parsabile: includi il post
 
+            likes    = item.get("likesCount") or item.get("likes") or 0
+            comments = item.get("commentsCount") or item.get("comments") or 0
+
+            # Estrai hashtag dal testo
+            hashtags = re.findall(r'#\w+', text_raw)
+
+            # Giorno della settimana
+            weekday = ""
+            if date_str:
+                try:
+                    _days = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+                    weekday = _days[datetime.strptime(date_str, "%Y-%m-%d").weekday()]
+                except ValueError:
+                    pass
+
             posts.append({
-                "postUrl": post_url,
-                "snippet": snippet,
-                "likes": item.get("likesCount") or item.get("likes") or 0,
-                "comments": item.get("commentsCount") or item.get("comments") or 0,
-                "date": date_str,
+                "postUrl":   post_url,
+                "full_text": text_raw,
+                "snippet":   snippet,
+                "hashtags":  hashtags,
+                "likes":     likes,
+                "comments":  comments,
+                "engagement": likes + comments,
+                "date":      date_str,
+                "weekday":   weekday,
             })
         return posts
     except Exception as e:
@@ -403,10 +422,11 @@ def run_post_reactions(post_url: str, max_reactions: int = 50, apify_api_key: st
 
 
 # --- TABS ---
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "🔍 Estrazione Lead (Scraping)",
     "🧹 Pulizia Database (Deep Cleaning)",
-    "🏆 Analisi Competitor"
+    "🏆 Analisi Competitor",
+    "📰 Piano Editoriale"
 ])
 
 # ----------------------------------------------------
@@ -956,3 +976,321 @@ with tab3:
 
             else:
                 st.info("Nessun lead trovato. Prova ad aumentare il numero di post o verificare gli slug dei competitor.")
+
+
+# ----------------------------------------------------
+# TAB 4: PIANO EDITORIALE
+# ----------------------------------------------------
+with tab4:
+    st.header("📰 Piano Editoriale — Analisi Post Competitor")
+    st.markdown(
+        "Analizza **cosa pubblicano i tuoi competitor** su LinkedIn: argomenti, hashtag, frequenza, "
+        "giorni migliori e post più performanti. Usa questi dati per costruire il tuo piano editoriale."
+    )
+
+    # --- COMPETITOR (riusa session_state dal Tab 3) ---
+    st.markdown("### 1️⃣ Competitor")
+    if "competitors" not in st.session_state:
+        st.session_state.competitors = [dict(c) for c in DEFAULT_COMPETITORS]
+
+    st.caption("Stessi competitor configurati nel Tab 3. Attiva/disattiva quelli che vuoi analizzare.")
+    pe_cols = st.columns([2, 3, 1])
+    pe_cols[0].markdown("**Competitor**")
+    pe_cols[1].markdown("**Slug LinkedIn**")
+    pe_cols[2].markdown("**Attivo**")
+    for i, comp in enumerate(st.session_state.competitors):
+        c1, c2, c3 = st.columns([2, 3, 1])
+        c1.text_input(f"pe_nome_{i}", value=st.session_state.get(f"comp_nome_{i}", comp["nome"]),
+                      label_visibility="collapsed", disabled=True)
+        c2.text_input(f"pe_slug_{i}", value=st.session_state.get(f"comp_slug_{i}", comp["slug"]),
+                      label_visibility="collapsed", disabled=True)
+        c3.checkbox("on", value=True, label_visibility="collapsed", key=f"pe_active_{i}")
+
+    # --- PARAMETRI ---
+    st.markdown("### 2️⃣ Parametri")
+    col_pe1, col_pe2 = st.columns(2)
+    with col_pe1:
+        pe_max_posts = st.slider(
+            "📄 Post per azienda (ultimi N)", min_value=5, max_value=50, value=20,
+            help="Scarica gli N post più recenti poi filtra per data."
+        )
+    with col_pe2:
+        pe_mesi = st.selectbox(
+            "📅 Periodo",
+            options=[1, 2, 3, 6, 12], index=1,
+            format_func=lambda x: "Ultimo mese" if x == 1 else f"Ultimi {x} mesi"
+        )
+
+    from datetime import datetime, timedelta
+    pe_cutoff = (datetime.today() - timedelta(days=30 * pe_mesi)).strftime("%Y-%m-%d")
+    st.caption(f"🗓️ Periodo: **{pe_cutoff}** → oggi")
+
+    # Parole da ignorare nell'analisi keyword
+    STOPWORDS_IT = {
+        "di","il","la","le","lo","gli","i","un","una","e","in","a","per","con","su","da","che",
+        "è","non","del","della","dei","delle","si","ha","al","nel","alla","ai","agli","alle",
+        "ci","più","anche","come","ma","o","se","sono","essere","questo","questa","questi",
+        "però","così","molto","ogni","tra","dopo","prima","quando","dove","ho","we","the",
+        "and","of","to","in","for","is","it","on","that","with","are","from","our","your",
+        "have","has","this","all","can","be","an","at","as","by","we","he","she","they",
+        "http","https","www","co","com",
+    }
+
+    if st.button("🚀 Avvia Analisi Editoriale", type="primary"):
+
+        pe_active = []
+        for i, comp in enumerate(st.session_state.competitors):
+            if st.session_state.get(f"pe_active_{i}", True):
+                pe_active.append({
+                    "nome": st.session_state.get(f"comp_nome_{i}", comp["nome"]),
+                    "slug": st.session_state.get(f"comp_slug_{i}", comp["slug"]),
+                })
+
+        if not pe_active:
+            st.warning("Seleziona almeno un competitor.")
+        else:
+            all_posts = []
+            errors_pe = []
+            pe_progress = st.progress(0, text="Inizializzazione...")
+            pe_status   = st.empty()
+
+            for ci, comp in enumerate(pe_active):
+                pe_progress.progress(ci / len(pe_active),
+                                     text=f"📡 Scaricando post di {comp['nome']} ({ci+1}/{len(pe_active)})...")
+                try:
+                    posts = run_competitor_posts(
+                        comp["slug"], max_posts=pe_max_posts, cutoff_date=pe_cutoff
+                    )
+                    for p in posts:
+                        p["Competitor"] = comp["nome"]
+                    all_posts.extend(posts)
+                except Exception as e:
+                    errors_pe.append(f"{comp['nome']}: {e}")
+
+            pe_progress.progress(1.0, text="✅ Completato!")
+            pe_status.empty()
+
+            if errors_pe:
+                with st.expander(f"⚠️ {len(errors_pe)} errori"):
+                    for err in errors_pe:
+                        st.warning(err)
+
+            if not all_posts:
+                st.info("Nessun post trovato nel periodo. Prova ad aumentare il numero di post o il periodo.")
+            else:
+                df_posts = pd.DataFrame(all_posts)
+                total_posts = len(df_posts)
+
+                # Metriche globali
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("🏢 Competitor", len(pe_active))
+                m2.metric("📄 Post totali", total_posts)
+                m3.metric("👍 Like totali", int(df_posts["likes"].sum()))
+                m4.metric("💬 Commenti totali", int(df_posts["comments"].sum()))
+
+                st.divider()
+
+                # ── SEZIONE 1: FREQUENZA DI PUBBLICAZIONE ────────────────
+                st.markdown("### 📅 Frequenza di pubblicazione")
+                freq_data = df_posts.groupby("Competitor").agg(
+                    Post=("postUrl", "count"),
+                    Like_medi=("likes", "mean"),
+                    Commenti_medi=("comments", "mean"),
+                    Engagement_medio=("engagement", "mean"),
+                ).round(1).reset_index()
+                freq_data = freq_data.sort_values("Post", ascending=False)
+                freq_data.columns = ["Competitor", "Post nel periodo", "Like medi", "Commenti medi", "Engagement medio"]
+                st.dataframe(freq_data, use_container_width=True, hide_index=True)
+
+                st.divider()
+
+                # ── SEZIONE 2: POST PIÙ PERFORMANTI ──────────────────────
+                st.markdown("### 🏆 Post più performanti")
+                df_top = df_posts[["Competitor", "date", "weekday", "likes", "comments", "engagement", "snippet", "postUrl"]].copy()
+                df_top.columns = ["Competitor", "Data", "Giorno", "Like", "Commenti", "Engagement", "Anteprima", "Link"]
+                df_top = df_top.sort_values("Engagement", ascending=False).head(20).reset_index(drop=True)
+
+                # Rendi il link cliccabile nella tabella
+                df_top_display = df_top.drop(columns=["Link"])
+                st.dataframe(df_top_display, use_container_width=True, hide_index=True)
+
+                st.divider()
+
+                # ── SEZIONE 3: HASHTAG PIÙ USATI ─────────────────────────
+                st.markdown("### 🏷️ Hashtag più usati")
+                all_hashtags = []
+                for _, row in df_posts.iterrows():
+                    for tag in row.get("hashtags", []):
+                        all_hashtags.append({"Competitor": row["Competitor"], "Hashtag": tag.lower()})
+
+                if all_hashtags:
+                    df_ht = pd.DataFrame(all_hashtags)
+
+                    # Globale top 20
+                    ht_global = df_ht["Hashtag"].value_counts().head(20).reset_index()
+                    ht_global.columns = ["Hashtag", "Frequenza"]
+
+                    # Per competitor
+                    ht_by_comp = df_ht.groupby(["Competitor", "Hashtag"]).size().reset_index(name="Frequenza")
+                    ht_by_comp = ht_by_comp.sort_values(["Competitor", "Frequenza"], ascending=[True, False])
+
+                    col_ht1, col_ht2 = st.columns([1, 2])
+                    with col_ht1:
+                        st.markdown("**Top 20 globali**")
+                        st.dataframe(ht_global, use_container_width=True, hide_index=True)
+                    with col_ht2:
+                        st.markdown("**Per competitor**")
+                        # Top 5 per ognuno
+                        ht_top5 = ht_by_comp.groupby("Competitor").head(5).reset_index(drop=True)
+                        st.dataframe(ht_top5, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nessun hashtag trovato nei post del periodo.")
+
+                st.divider()
+
+                # ── SEZIONE 4: GIORNO MIGLIORE ────────────────────────────
+                st.markdown("### 📆 Giorno con più engagement")
+                day_order = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+                df_days = df_posts[df_posts["weekday"] != ""].copy()
+                if not df_days.empty:
+                    day_stats = df_days.groupby("weekday").agg(
+                        Post=("postUrl", "count"),
+                        Engagement_medio=("engagement", "mean")
+                    ).round(1).reset_index()
+                    day_stats["weekday"] = pd.Categorical(day_stats["weekday"], categories=day_order, ordered=True)
+                    day_stats = day_stats.sort_values("weekday").reset_index(drop=True)
+                    day_stats.columns = ["Giorno", "Post pubblicati", "Engagement medio"]
+                    st.dataframe(day_stats, use_container_width=True, hide_index=True)
+                    best_day = day_stats.sort_values("Engagement medio", ascending=False).iloc[0]["Giorno"]
+                    st.success(f"💡 Il giorno con più engagement medio è **{best_day}**")
+                else:
+                    st.info("Date non disponibili per l'analisi per giorno.")
+
+                st.divider()
+
+                # ── SEZIONE 5: KEYWORD PIÙ FREQUENTI ─────────────────────
+                st.markdown("### 🔑 Parole chiave più usate nei post")
+                all_words = []
+                for _, row in df_posts.iterrows():
+                    words = re.findall(r'\b[a-zàèéìòùA-Z]{4,}\b', row.get("full_text", ""))
+                    for w in words:
+                        wl = w.lower()
+                        if wl not in STOPWORDS_IT:
+                            all_words.append({"Competitor": row["Competitor"], "Parola": wl})
+
+                if all_words:
+                    df_words = pd.DataFrame(all_words)
+                    kw_global = df_words["Parola"].value_counts().head(30).reset_index()
+                    kw_global.columns = ["Parola", "Frequenza"]
+                    kw_by_comp = df_words.groupby(["Competitor", "Parola"]).size().reset_index(name="Frequenza")
+                    kw_by_comp = kw_by_comp.sort_values(["Competitor", "Frequenza"], ascending=[True, False])
+                    kw_top5 = kw_by_comp.groupby("Competitor").head(8).reset_index(drop=True)
+
+                    col_kw1, col_kw2 = st.columns([1, 2])
+                    with col_kw1:
+                        st.markdown("**Top 30 globali**")
+                        st.dataframe(kw_global, use_container_width=True, hide_index=True)
+                    with col_kw2:
+                        st.markdown("**Top 8 per competitor**")
+                        st.dataframe(kw_top5, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Testo non disponibile per l'analisi keyword.")
+
+                st.divider()
+
+                # ── SEZIONE 6: TUTTI I POST COMPLETI ─────────────────────
+                st.markdown("### 📋 Tutti i post (testo completo)")
+                sort_pe_cols = [c for c in ["Competitor", "date", "engagement", "likes", "comments"] if c in df_posts.columns]
+                sort_pe_sel  = st.multiselect(
+                    "📊 Ordina per", options=sort_pe_cols,
+                    default=["Competitor", "engagement"],
+                    key="sort_tab4"
+                )
+                df_full_display = _sort_df(df_posts, [(c, c not in ["engagement","likes","comments"]) for c in sort_pe_sel])
+
+                show_cols = ["Competitor", "date", "weekday", "likes", "comments", "engagement", "snippet", "hashtags", "postUrl"]
+                show_cols = [c for c in show_cols if c in df_full_display.columns]
+                rename_map = {"date": "Data", "weekday": "Giorno", "likes": "Like",
+                              "comments": "Commenti", "engagement": "Engagement",
+                              "snippet": "Anteprima", "hashtags": "Hashtag", "postUrl": "Link"}
+                df_full_display = df_full_display[show_cols].rename(columns=rename_map)
+                st.dataframe(df_full_display, use_container_width=True, hide_index=True)
+
+                # ── EXCEL COMPLETO ────────────────────────────────────────
+                st.markdown("### 📥 Esporta")
+                wb_pe = Workbook()
+                # Un foglio per ogni competitor + foglio riepilogo
+                wb_pe.remove(wb_pe.active)  # rimuove il foglio vuoto di default
+
+                header_font_pe = Font(bold=True, color="FFFFFF", size=11)
+                header_fill_pe = PatternFill(start_color="1A3A5C", end_color="1A3A5C", fill_type="solid")
+                header_align_pe = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                thin_b_pe = Border(
+                    left=Side(style="thin", color="CCCCCC"), right=Side(style="thin", color="CCCCCC"),
+                    top=Side(style="thin", color="CCCCCC"),  bottom=Side(style="thin", color="CCCCCC"),
+                )
+
+                def _write_sheet(wb, title, df_sheet, fill_color=None):
+                    ws = wb.create_sheet(title=title[:31])
+                    cols_s = list(df_sheet.columns)
+                    ws.row_dimensions[1].height = 28
+                    for ci, cn in enumerate(cols_s, 1):
+                        cell = ws.cell(row=1, column=ci, value=cn)
+                        cell.font = header_font_pe
+                        cell.fill = header_fill_pe
+                        cell.alignment = header_align_pe
+                        cell.border = thin_b_pe
+                    fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid") if fill_color else None
+                    link_ci = cols_s.index("Link") + 1 if "Link" in cols_s else None
+                    for ri, row_vals in enumerate(df_sheet.values.tolist(), 2):
+                        for ci, val in enumerate(row_vals, 1):
+                            # Converti liste in stringa per Excel
+                            if isinstance(val, list):
+                                val = ", ".join(val)
+                            cell = ws.cell(row=ri, column=ci, value=val)
+                            cell.border = thin_b_pe
+                            cell.alignment = Alignment(vertical="top", wrap_text=(ci == (cols_s.index("Testo completo")+1 if "Testo completo" in cols_s else -1)))
+                            if fill:
+                                cell.fill = fill
+                            if link_ci and ci == link_ci and val:
+                                cell.hyperlink = str(val)
+                                cell.font = Font(color="1155CC", underline="single")
+                    # Larghezze
+                    for ci, cn in enumerate(cols_s, 1):
+                        col_data = [str(cn)] + [str(v) if v else "" for v in df_sheet.iloc[:, ci-1]]
+                        w = min(max(len(str(s)) for s in col_data), 60) + 2
+                        ws.column_dimensions[get_column_letter(ci)].width = w
+                    ws.freeze_panes = "A2"
+
+                # Foglio RIEPILOGO
+                _write_sheet(wb_pe, "Riepilogo", freq_data)
+
+                # Foglio per ogni competitor
+                for ci_comp, comp_name in enumerate(df_posts["Competitor"].unique()):
+                    df_comp_sheet = df_posts[df_posts["Competitor"] == comp_name].copy()
+                    df_comp_sheet = df_comp_sheet[["date","weekday","likes","comments","engagement","snippet","full_text","hashtags","postUrl"]].copy()
+                    df_comp_sheet["hashtags"] = df_comp_sheet["hashtags"].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
+                    df_comp_sheet.columns = ["Data","Giorno","Like","Commenti","Engagement","Anteprima","Testo completo","Hashtag","Link"]
+                    df_comp_sheet = df_comp_sheet.sort_values("Engagement", ascending=False).reset_index(drop=True)
+                    color = COLORS[ci_comp % len(COLORS)]
+                    _write_sheet(wb_pe, comp_name[:31], df_comp_sheet, fill_color=color)
+
+                # Foglio HASHTAG globali
+                if all_hashtags:
+                    _write_sheet(wb_pe, "Hashtag", ht_global)
+
+                # Foglio KEYWORD globali
+                if all_words:
+                    _write_sheet(wb_pe, "Keyword", kw_global)
+
+                out_pe = io.BytesIO()
+                wb_pe.save(out_pe)
+                out_pe.seek(0)
+
+                st.download_button(
+                    label="📥 Scarica Excel Piano Editoriale",
+                    data=out_pe,
+                    file_name="Scyavuru_Piano_Editoriale.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary"
+                )

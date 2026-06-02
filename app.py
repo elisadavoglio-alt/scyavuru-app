@@ -200,6 +200,20 @@ def _apply_boolean_filters(df: pd.DataFrame, must_include: str, must_exclude: st
     return df[mask].reset_index(drop=True)
 
 
+def _sort_df(df: pd.DataFrame, sort_keys: list) -> pd.DataFrame:
+    """Ordina il dataframe per una lista di (colonna, ascending).
+    Ignora colonne assenti. sort_keys: [('Azienda', True), ('Nome', True), ...]
+    """
+    if df.empty or not sort_keys:
+        return df
+    valid_keys = [(col, asc) for col, asc in sort_keys if col in df.columns]
+    if not valid_keys:
+        return df
+    cols_order = [col for col, _ in valid_keys]
+    asc_order  = [asc for _, asc in valid_keys]
+    return df.sort_values(by=cols_order, ascending=asc_order, na_position="last").reset_index(drop=True)
+
+
 def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_api_key: str=None):
     if not apify_api_key:
         apify_api_key = APIFY_API_KEY
@@ -471,6 +485,17 @@ with tab1:
                     if eliminati > 0:
                         st.caption(f"🔬 Filtri booleani attivi: rimossi {eliminati} profili fuori target.")
 
+                    # --- ORDINAMENTO ---
+                    _sort_cols_t1 = [c for c in ["Azienda", "Qualifica", "Nome", "Cognome", "Email", "Fonte Email", "Score"] if c in df_filtrato.columns]
+                    _sort_sel_t1  = st.multiselect(
+                        "📊 Ordina per (in sequenza)",
+                        options=_sort_cols_t1,
+                        default=[c for c in ["Azienda", "Qualifica"] if c in _sort_cols_t1],
+                        key="sort_tab1",
+                        help="Trascina le voci per cambiare l'ordine di priorità."
+                    )
+                    df_filtrato = _sort_df(df_filtrato, [(c, True) for c in _sort_sel_t1])
+
                     st.dataframe(df_filtrato, use_container_width=True)
 
                     # Export Excel Formattato
@@ -561,6 +586,17 @@ with tab2:
                     col_m1.metric("📋 Originali", original_len)
                     col_m2.metric("✅ Dopo filtri + dedup", final_len)
                     col_m3.metric("🗑️ Eliminati", rimossi)
+
+                    # --- ORDINAMENTO ---
+                    _sort_cols_t2 = [c for c in ["Categoria (Ricerca)", "Azienda", "Qualifica", "Nome", "Cognome"] if c in df_clean.columns]
+                    _sort_sel_t2  = st.multiselect(
+                        "📊 Ordina per (in sequenza)",
+                        options=_sort_cols_t2,
+                        default=[c for c in ["Categoria (Ricerca)", "Azienda"] if c in _sort_cols_t2],
+                        key="sort_tab2",
+                        help="Il primo campo ha la priorità. L'ordinamento si applica anche all'Excel scaricato."
+                    )
+                    df_clean = _sort_df(df_clean, [(c, True) for c in _sort_sel_t2])
 
                     # Excel formattato con colori per categoria
                     wb = Workbook()
@@ -827,6 +863,17 @@ with tab3:
                              "Post Snippet", "Post Data", "Post Likes", "Link Profilo", "Post URL"]
                 col_order = [c for c in col_order if c in df_leads.columns]
                 df_leads = df_leads[col_order]
+
+                # --- ORDINAMENTO ---
+                _sort_cols_t3 = [c for c in ["Competitor", "Azienda", "Qualifica", "Nome", "Post Data", "Post Likes", "Reazione"] if c in df_leads.columns]
+                _sort_sel_t3  = st.multiselect(
+                    "📊 Ordina per (in sequenza)",
+                    options=_sort_cols_t3,
+                    default=[c for c in ["Competitor", "Azienda"] if c in _sort_cols_t3],
+                    key="sort_tab3",
+                    help="Scegli una o più colonne. Il primo campo ha la priorità."
+                )
+                df_leads = _sort_df(df_leads, [(c, True) for c in _sort_sel_t3])
 
                 st.dataframe(df_leads, use_container_width=True)
 

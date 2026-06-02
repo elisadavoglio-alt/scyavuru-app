@@ -401,6 +401,15 @@ def run_competitor_posts(company_slug: str, max_posts: int = 10,
             # --- Hashtag ---
             hashtags = re.findall(r'#\w+', text_raw)
 
+            # --- Followers ---
+            followers_raw = item.get("author", {}).get("info", "")
+            followers = 0
+            if "followers" in followers_raw:
+                try:
+                    followers = int(followers_raw.replace("followers", "").replace(",", "").strip())
+                except:
+                    pass
+
             # --- Giorno della settimana ---
             weekday = ""
             if date_str and len(date_str) == 10:
@@ -880,6 +889,7 @@ with tab3:
                             )
                             for person in reactions:
                                 person["Competitor"] = comp["nome"]
+                                person["Follower Competitor"] = post.get("followers", 0)
                                 person["Post Snippet"] = post.get("snippet", "")
                                 person["Post URL"] = post["postUrl"]
                                 person["Post Data"] = post.get("date", "")
@@ -1272,9 +1282,9 @@ with tab4:
                 )
                 df_full_display = _sort_df(df_posts, [(c, c not in ["engagement","likes","comments","shares"]) for c in sort_pe_sel])
 
-                show_cols = ["Competitor", "date", "weekday", "likes", "comments", "shares", "engagement", "snippet", "hashtags", "postUrl"]
+                show_cols = ["Competitor", "followers", "date", "weekday", "likes", "comments", "shares", "engagement", "snippet", "hashtags", "postUrl"]
                 show_cols = [c for c in show_cols if c in df_full_display.columns]
-                rename_map = {"date": "Data", "weekday": "Giorno", "likes": "Like",
+                rename_map = {"followers": "Follower", "date": "Data", "weekday": "Giorno", "likes": "Like",
                               "comments": "Commenti", "shares": "Condivisioni",
                               "engagement": "Engagement",
                               "snippet": "Anteprima", "hashtags": "Hashtag", "postUrl": "Link"}
@@ -1333,10 +1343,10 @@ with tab4:
                 # Foglio per ogni competitor
                 for ci_comp, comp_name in enumerate(df_posts["Competitor"].unique()):
                     df_comp_sheet = df_posts[df_posts["Competitor"] == comp_name].copy()
-                    exp_cols = [c for c in ["date","weekday","likes","comments","shares","engagement","snippet","full_text","hashtags","postUrl"] if c in df_comp_sheet.columns]
+                    exp_cols = [c for c in ["followers","date","weekday","likes","comments","shares","engagement","snippet","full_text","hashtags","postUrl"] if c in df_comp_sheet.columns]
                     df_comp_sheet = df_comp_sheet[exp_cols].copy()
                     df_comp_sheet["hashtags"] = df_comp_sheet["hashtags"].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
-                    col_labels = {"date": "Data", "weekday": "Giorno", "likes": "Like",
+                    col_labels = {"followers": "Follower", "date": "Data", "weekday": "Giorno", "likes": "Like",
                                   "comments": "Commenti", "shares": "Condivisioni",
                                   "engagement": "Engagement", "snippet": "Anteprima",
                                   "full_text": "Testo completo", "hashtags": "Hashtag", "postUrl": "Link"}

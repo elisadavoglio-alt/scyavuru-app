@@ -11,6 +11,17 @@ st.set_page_config(page_title="Scyavuru Lead Manager", page_icon="🍯", layout=
 
 COLORS = ["E6F2FF", "FFF2E6", "E6FFE6", "FFE6E6", "F2E6FF", "FFFFE6", "E6FFFF", "FFE6FF", "F0F0F0", "E6F9FF"]
 
+# Competitor pre-caricati (slug LinkedIn — modificabili dall'utente nell'UI)
+DEFAULT_COMPETITORS = [
+    {"nome": "Fiasconaro",       "slug": "fiasconaro"},
+    {"nome": "Pisti by Nutcao", "slug": "pisti-antichi-sapori-dell-etna"},
+    {"nome": "Marullo",          "slug": "marullo"},
+    {"nome": "Damiani",          "slug": "damiani-1946"},
+    {"nome": "Vasetto.it",       "slug": "vasetto-it"},
+    {"nome": "Bacco",            "slug": "bacco-srl"},
+    {"nome": "Bronte Dolci",     "slug": "bronte-dolci"},
+]
+
 st.title("🍯 Scyavuru Lead Manager Pro")
 st.markdown("Strumento aziendale per l'estrazione autonoma e la pulizia dei database GDO.")
 
@@ -289,8 +300,87 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
 
     return results
 
+
+# --- FUNZIONI COMPETITOR ANALYSIS ---
+def run_competitor_posts(company_slug: str, max_posts: int = 10, apify_api_key: str = None) -> list:
+    """Scarica i post recenti di una company LinkedIn tramite HarvestAPI.
+    Restituisce lista di dict con postUrl, testo, engagement.
+    """
+    if not apify_api_key:
+        apify_api_key = APIFY_API_KEY
+    from apify_client import ApifyClient
+    client = ApifyClient(apify_api_key)
+
+    company_url = f"https://www.linkedin.com/company/{company_slug}/"
+    run_input = {
+        "companyUrls": [company_url],
+        "maxPosts": max_posts,
+        "scrapeReactions": False,   # le reactions le prendiamo a parte
+        "scrapeComments": False,
+    }
+    try:
+        run = client.actor("harvestapi/linkedin-company-posts").call(run_input=run_input)
+        dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "defaultDatasetId", None)
+        posts = []
+        for item in client.dataset(dataset_id).iterate_items():
+            post_url = item.get("postUrl") or item.get("url") or ""
+            if not post_url:
+                continue
+            text_raw = item.get("text") or item.get("content") or ""
+            snippet = text_raw[:120].replace("\n", " ") + ("..." if len(text_raw) > 120 else "")
+            posts.append({
+                "postUrl": post_url,
+                "snippet": snippet,
+                "likes": item.get("likesCount") or item.get("likes") or 0,
+                "comments": item.get("commentsCount") or item.get("comments") or 0,
+                "date": str(item.get("postedAt") or item.get("date") or "")[:10],
+            })
+        return posts
+    except Exception as e:
+        raise RuntimeError(f"Errore post {company_slug}: {e}")
+
+
+def run_post_reactions(post_url: str, max_reactions: int = 50, apify_api_key: str = None) -> list:
+    """Estrae le persone che hanno reagito a un post LinkedIn.
+    Restituisce lista di dict con nome, qualifica, azienda, profileUrl.
+    """
+    if not apify_api_key:
+        apify_api_key = APIFY_API_KEY
+    from apify_client import ApifyClient
+    client = ApifyClient(apify_api_key)
+
+    run_input = {
+        "postUrls": [post_url],
+        "maxReactions": max_reactions,
+    }
+    try:
+        run = client.actor("harvestapi/linkedin-post-reactions").call(run_input=run_input)
+        dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "defaultDatasetId", None)
+        people = []
+        for item in client.dataset(dataset_id).iterate_items():
+            fn   = item.get("firstName", "") or ""
+            ln   = item.get("lastName", "")  or ""
+            nome = (fn.strip().title() + " " + ln.strip().title()).strip()
+            if not nome:
+                nome = item.get("name", "") or ""
+            people.append({
+                "Nome":         nome,
+                "Qualifica":    item.get("headline") or item.get("title") or "N/D",
+                "Azienda":      item.get("companyName") or item.get("company") or "Da verificare",
+                "Link Profilo": item.get("linkedinUrl") or item.get("profileUrl") or "",
+                "Reazione":     item.get("reactionType") or "Like",
+            })
+        return people
+    except Exception as e:
+        raise RuntimeError(f"Errore reactions {post_url}: {e}")
+
+
 # --- TABS ---
-tab1, tab2 = st.tabs(["🔍 Estrazione Lead (Scraping)", "🧹 Pulizia Database (Deep Cleaning)"])
+tab1, tab2, tab3 = st.tabs([
+    "🔍 Estrazione Lead (Scraping)",
+    "🧹 Pulizia Database (Deep Cleaning)",
+    "🏆 Analisi Competitor"
+])
 
 # ----------------------------------------------------
 # TAB 1: ESTRAZIONE (SCRAPING)
@@ -490,3 +580,260 @@ with tab2:
                 except Exception as e:
                     st.error(f"Errore durante l'elaborazione: {e}")
 
+
+# ----------------------------------------------------
+# TAB 3: ANALISI COMPETITOR
+# ----------------------------------------------------
+with tab3:
+    st.header("🏆 Analisi Competitor — Lead da Engagement")
+    st.markdown(
+        "Estrae automaticamente **chi ha reagito ai post** dei tuoi competitor su LinkedIn. "
+        "Questi profili sono lead **caldissimi**: conoscono già il settore e interagiscono attivamente con prodotti simili a Scyavuru."
+    )
+
+    # --- TABELLA COMPETITOR MODIFICABILE ---
+    st.markdown("### 1️⃣ Competitor da analizzare")
+    st.caption("Verifica o aggiorna gli slug LinkedIn (la parte finale di `linkedin.com/company/<slug>`).")
+
+    # Inizializza in session_state per permettere modifiche
+    if "competitors" not in st.session_state:
+        st.session_state.competitors = [dict(c) for c in DEFAULT_COMPETITORS]
+
+    comp_cols = st.columns([2, 3, 1])
+    comp_cols[0].markdown("**Competitor**")
+    comp_cols[1].markdown("**Slug LinkedIn**")
+    comp_cols[2].markdown("**Attivo**")
+
+    for i, comp in enumerate(st.session_state.competitors):
+        c1, c2, c3 = st.columns([2, 3, 1])
+        with c1:
+            st.text_input(
+                f"nome_{i}", value=comp["nome"], label_visibility="collapsed",
+                key=f"comp_nome_{i}",
+                on_change=lambda i=i: st.session_state.competitors[i].update(
+                    {"nome": st.session_state[f"comp_nome_{i}"]}
+                )
+            )
+        with c2:
+            st.text_input(
+                f"slug_{i}", value=comp["slug"], label_visibility="collapsed",
+                key=f"comp_slug_{i}",
+                on_change=lambda i=i: st.session_state.competitors[i].update(
+                    {"slug": st.session_state[f"comp_slug_{i}"]}
+                )
+            )
+        with c3:
+            st.checkbox(
+                "on", value=True, label_visibility="collapsed",
+                key=f"comp_active_{i}"
+            )
+
+    # --- PARAMETRI ---
+    st.markdown("### 2️⃣ Parametri di estrazione")
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        max_posts_comp = st.slider(
+            "📄 Post per azienda (ultimi N)", min_value=3, max_value=30, value=10,
+            help="Più post = più lead ma più tempo e costo API."
+        )
+    with col_p2:
+        max_reactions_comp = st.slider(
+            "👥 Max reazioni per post", min_value=10, max_value=200, value=50,
+            help="LinkedIn espone max ~1200 reazioni per post."
+        )
+
+    # --- FILTRI BOOLEANI (riuso funzione modulo) ---
+    with st.expander("🔬 Filtri Booleani Avanzati (AND / OR / NOT)", expanded=False):
+        st.markdown("Applicati sui campi **Qualifica** e **Azienda** dei lead estratti.")
+        col_cf1, col_cf2 = st.columns(2)
+        with col_cf1:
+            comp_must_include = st.text_input(
+                "✅ DEVE contenere (AND/OR)",
+                value="",
+                placeholder="es: buyer + food, category manager",
+                key="comp_include"
+            )
+        with col_cf2:
+            comp_must_exclude = st.text_input(
+                "🚫 NON DEVE contenere (NOT)",
+                value="",
+                placeholder="es: marketing, hr, recruiting",
+                key="comp_exclude"
+            )
+
+    st.info(
+        "💡 **Stima costo:** ~$0.002 per post + ~$0.002 per reazione. "
+        f"Con {max_posts_comp} post × {max_reactions_comp} reazioni × 7 competitor = "
+        f"**~${round(7 * max_posts_comp * 0.002 + 7 * max_posts_comp * max_reactions_comp * 0.002, 2)}**"
+    )
+
+    if st.button("🚀 Avvia Analisi Competitor", type="primary"):
+
+        # Raccogli competitor attivi con slug aggiornato dalla UI
+        active_comps = []
+        for i, comp in enumerate(st.session_state.competitors):
+            if st.session_state.get(f"comp_active_{i}", True):
+                active_comps.append({
+                    "nome": st.session_state.get(f"comp_nome_{i}", comp["nome"]),
+                    "slug": st.session_state.get(f"comp_slug_{i}", comp["slug"]),
+                })
+
+        if not active_comps:
+            st.warning("Seleziona almeno un competitor.")
+        else:
+            all_leads = []
+            total_posts_found = 0
+            errors = []
+
+            progress_bar = st.progress(0, text="Inizializzazione...")
+            status_placeholder = st.empty()
+
+            for ci, comp in enumerate(active_comps):
+                progress = ci / len(active_comps)
+                progress_bar.progress(progress, text=f"📡 Analisi {comp['nome']} ({ci+1}/{len(active_comps)})...")
+
+                try:
+                    # Step 1: scarica i post
+                    status_placeholder.info(f"🔍 Scaricando post di **{comp['nome']}**...")
+                    posts = run_competitor_posts(comp["slug"], max_posts=max_posts_comp)
+                    total_posts_found += len(posts)
+
+                    # Step 2: per ogni post, scarica le reazioni
+                    for pi, post in enumerate(posts):
+                        status_placeholder.info(
+                            f"👍 Reazioni post {pi+1}/{len(posts)} di **{comp['nome']}** "
+                            f"({post.get('likes', 0)} likes) — {post.get('date', '')}"
+                        )
+                        try:
+                            reactions = run_post_reactions(
+                                post["postUrl"], max_reactions=max_reactions_comp
+                            )
+                            for person in reactions:
+                                person["Competitor"] = comp["nome"]
+                                person["Post Snippet"] = post.get("snippet", "")
+                                person["Post URL"] = post["postUrl"]
+                                person["Post Data"] = post.get("date", "")
+                                person["Post Likes"] = post.get("likes", 0)
+                                all_leads.append(person)
+                        except Exception as e_post:
+                            errors.append(f"{comp['nome']} post {pi+1}: {e_post}")
+
+                except Exception as e_comp:
+                    errors.append(f"{comp['nome']}: {e_comp}")
+
+            progress_bar.progress(1.0, text="✅ Analisi completata!")
+            status_placeholder.empty()
+
+            if errors:
+                with st.expander(f"⚠️ {len(errors)} errori durante l'estrazione"):
+                    for err in errors:
+                        st.warning(err)
+
+            if all_leads:
+                df_leads = pd.DataFrame(all_leads)
+
+                # Deduplicazione per profilo
+                before_dedup = len(df_leads)
+                if "Link Profilo" in df_leads.columns:
+                    df_leads = df_leads.drop_duplicates(subset=["Link Profilo"])
+                df_leads = df_leads.reset_index(drop=True)
+                after_dedup = len(df_leads)
+
+                # Filtri booleani
+                df_leads = _apply_boolean_filters(df_leads, comp_must_include, comp_must_exclude)
+                after_filter = len(df_leads)
+
+                # --- METRICHE ---
+                mc1, mc2, mc3, mc4 = st.columns(4)
+                mc1.metric("🏢 Competitor analizzati", len(active_comps))
+                mc2.metric("📄 Post analizzati", total_posts_found)
+                mc3.metric("👥 Lead unici", after_dedup, delta=f"-{before_dedup - after_dedup} duplicati" if before_dedup > after_dedup else None)
+                mc4.metric("✅ Dopo filtri", after_filter, delta=f"-{after_dedup - after_filter}" if after_dedup > after_filter else None)
+
+                # Riordina colonne per leggibilità
+                col_order = ["Competitor", "Nome", "Qualifica", "Azienda", "Reazione",
+                             "Post Snippet", "Post Data", "Post Likes", "Link Profilo", "Post URL"]
+                col_order = [c for c in col_order if c in df_leads.columns]
+                df_leads = df_leads[col_order]
+
+                st.dataframe(df_leads, use_container_width=True)
+
+                # --- EXCEL FORMATTATO CON COLORE PER COMPETITOR ---
+                wb_comp = Workbook()
+                ws_comp = wb_comp.active
+                ws_comp.title = "Lead Competitor"
+
+                header_font   = Font(bold=True, color="FFFFFF", size=11)
+                header_fill   = PatternFill(start_color="1A2940", end_color="1A2940", fill_type="solid")
+                header_align  = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                thin_border   = Border(
+                    left=Side(style="thin", color="CCCCCC"),
+                    right=Side(style="thin", color="CCCCCC"),
+                    top=Side(style="thin", color="CCCCCC"),
+                    bottom=Side(style="thin", color="CCCCCC"),
+                )
+
+                # Intestazioni
+                ws_comp.row_dimensions[1].height = 30
+                for c_idx, col_name in enumerate(col_order, 1):
+                    cell = ws_comp.cell(row=1, column=c_idx, value=col_name)
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_align
+                    cell.border = thin_border
+
+                # Mappa colori per competitor
+                competitors_found = df_leads["Competitor"].unique() if "Competitor" in df_leads.columns else []
+                comp_fill_map = {
+                    name: PatternFill(
+                        start_color=COLORS[i % len(COLORS)],
+                        end_color=COLORS[i % len(COLORS)],
+                        fill_type="solid"
+                    )
+                    for i, name in enumerate(competitors_found)
+                }
+
+                link_col_idx = col_order.index("Link Profilo") + 1 if "Link Profilo" in col_order else None
+                post_url_col_idx = col_order.index("Post URL") + 1 if "Post URL" in col_order else None
+
+                for r_idx, row_vals in enumerate(df_leads.values.tolist(), 2):
+                    comp_name = row_vals[col_order.index("Competitor")] if "Competitor" in col_order else ""
+                    row_fill = comp_fill_map.get(comp_name)
+
+                    for c_idx, value in enumerate(row_vals, 1):
+                        cell = ws_comp.cell(row=r_idx, column=c_idx, value=value)
+                        cell.alignment = Alignment(vertical="center", wrap_text=False)
+                        cell.border = thin_border
+                        if row_fill:
+                            cell.fill = row_fill
+
+                        # Link cliccabili
+                        if link_col_idx and c_idx == link_col_idx and value:
+                            cell.hyperlink = str(value)
+                            cell.font = Font(color="1155CC", underline="single")
+                        elif post_url_col_idx and c_idx == post_url_col_idx and value:
+                            cell.hyperlink = str(value)
+                            cell.font = Font(color="1155CC", underline="single")
+
+                # Larghezze automatiche
+                for c_idx, col_name in enumerate(col_order, 1):
+                    col_data = [str(col_name)] + [str(v) if v else "" for v in df_leads.iloc[:, c_idx - 1]]
+                    max_len = min(max(len(s) for s in col_data), 60)
+                    ws_comp.column_dimensions[get_column_letter(c_idx)].width = max_len + 2
+
+                ws_comp.freeze_panes = "A2"
+
+                output_comp = io.BytesIO()
+                wb_comp.save(output_comp)
+                output_comp.seek(0)
+
+                st.download_button(
+                    label="📥 Scarica Excel Lead Competitor",
+                    data=output_comp,
+                    file_name="Scyavuru_Lead_Competitor.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary"
+                )
+
+            else:
+                st.info("Nessun lead trovato. Prova ad aumentare il numero di post o verificare gli slug dei competitor.")

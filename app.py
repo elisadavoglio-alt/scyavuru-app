@@ -1064,19 +1064,35 @@ with tab4:
                     for p in posts:
                         p["Competitor"] = comp["nome"]
                     all_posts.extend(posts)
+                    if len(posts) == 0:
+                        errors_pe.append(f"{comp['nome']}: 0 post trovati (possibile blocco LinkedIn o crediti proxy esauriti)")
                 except Exception as e:
-                    errors_pe.append(f"{comp['nome']}: {e}")
+                    err_str = str(e)
+                    if "Dataset was not found" in err_str or "dataset" in err_str.lower():
+                        errors_pe.append(f"{comp['nome']}: LinkedIn ha bloccato la richiesta (proxy residenziali esauriti sull'account Apify)")
+                    else:
+                        errors_pe.append(f"{comp['nome']}: {err_str}")
 
             pe_progress.progress(1.0, text="✅ Completato!")
             pe_status.empty()
 
             if errors_pe:
-                with st.expander(f"⚠️ {len(errors_pe)} errori"):
+                with st.expander(f"⚠️ {len(errors_pe)} competitor con problemi", expanded=True):
                     for err in errors_pe:
                         st.warning(err)
+                    st.error(
+                        "🔍 **Causa probabile: proxy residenziali esauriti sull'account Apify.**\n\n"
+                        "LinkedIn richiede proxy residenziali per lo scraping dei post aziendali. "
+                        "Soluzione: vai su [console.apify.com](https://console.apify.com) → Billing → Add credits ($10 ≈ 5.000 post)."
+                    )
 
             if not all_posts:
-                st.info("Nessun post trovato nel periodo. Prova ad aumentare il numero di post o il periodo.")
+                st.warning(
+                    "🚨 Nessun post recuperato. Questo è quasi certamente un problema di **proxy residenziali esauriti** "
+                    "sull'account Apify, non un errore del codice.\n\n"
+                    "**Soluzione:** Ricarica i crediti su [console.apify.com](https://console.apify.com) → Billing."
+                )
+
             else:
                 df_posts = pd.DataFrame(all_posts)
                 total_posts = len(df_posts)

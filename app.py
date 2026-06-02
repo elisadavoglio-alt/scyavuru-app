@@ -23,6 +23,16 @@ DEFAULT_COMPETITORS = [
                               "showcase": True},  # pagina /showcase/ non supportata dall'actor
 ]
 
+# Sincronizzazione globale di st.session_state.competitors all'avvio
+if "competitors" not in st.session_state:
+    st.session_state.competitors = [dict(c) for c in DEFAULT_COMPETITORS]
+else:
+    # Sincronizza i flag tecnici che potrebbero mancare da vecchie sessioni salvate
+    for i, def_c in enumerate(DEFAULT_COMPETITORS):
+        if i < len(st.session_state.competitors):
+            st.session_state.competitors[i]["linkedin_posts"] = def_c.get("linkedin_posts", True)
+            st.session_state.competitors[i]["showcase"] = def_c.get("showcase", False)
+
 st.title("🍯 Scyavuru Lead Manager Pro")
 st.markdown("Strumento aziendale per l'estrazione autonoma e la pulizia dei database GDO.")
 
@@ -732,37 +742,36 @@ with tab3:
     st.markdown("### 1️⃣ Competitor da analizzare")
     st.caption("Verifica o aggiorna gli slug LinkedIn (la parte finale di `linkedin.com/company/<slug>`).")
 
-    # Inizializza in session_state per permettere modifiche
-    if "competitors" not in st.session_state:
-        st.session_state.competitors = [dict(c) for c in DEFAULT_COMPETITORS]
-
+    # La lista competitors è ora sincronizzata all'inizio dello script.
     comp_cols = st.columns([2, 3, 1])
     comp_cols[0].markdown("**Competitor**")
     comp_cols[1].markdown("**Slug LinkedIn**")
     comp_cols[2].markdown("**Attivo**")
 
     for i, comp in enumerate(st.session_state.competitors):
+        has_li = comp.get("linkedin_posts", True)
         c1, c2, c3 = st.columns([2, 3, 1])
         with c1:
+            label_display = comp["nome"] if has_li else f"🚫 {comp['nome']}"
             st.text_input(
-                f"nome_{i}", value=comp["nome"], label_visibility="collapsed",
-                key=f"comp_nome_{i}",
+                f"nome_{i}", value=label_display, label_visibility="collapsed",
+                key=f"comp_nome_{i}", disabled=not has_li,
                 on_change=lambda i=i: st.session_state.competitors[i].update(
                     {"nome": st.session_state[f"comp_nome_{i}"]}
                 )
             )
         with c2:
             st.text_input(
-                f"slug_{i}", value=comp["slug"], label_visibility="collapsed",
-                key=f"comp_slug_{i}",
+                f"slug_{i}", value=comp["slug"] if has_li else "(nessuna pagina LinkedIn)", label_visibility="collapsed",
+                key=f"comp_slug_{i}", disabled=not has_li,
                 on_change=lambda i=i: st.session_state.competitors[i].update(
                     {"slug": st.session_state[f"comp_slug_{i}"]}
                 )
             )
         with c3:
             st.checkbox(
-                "on", value=True, label_visibility="collapsed",
-                key=f"comp_active_{i}"
+                "on", value=has_li, label_visibility="collapsed",
+                key=f"comp_active_{i}", disabled=not has_li
             )
 
     # --- PARAMETRI ---
@@ -827,10 +836,11 @@ with tab3:
         # Raccogli competitor attivi con slug aggiornato dalla UI
         active_comps = []
         for i, comp in enumerate(st.session_state.competitors):
-            if st.session_state.get(f"comp_active_{i}", True):
+            if st.session_state.get(f"comp_active_{i}", True) and comp.get("linkedin_posts", True):
                 active_comps.append({
                     "nome": st.session_state.get(f"comp_nome_{i}", comp["nome"]),
                     "slug": st.session_state.get(f"comp_slug_{i}", comp["slug"]),
+                    "showcase": comp.get("showcase", False),
                 })
 
         if not active_comps:
@@ -854,7 +864,8 @@ with tab3:
                         f"{'mese' if mesi_indietro == 1 else 'mesi'}, da {cutoff_date_comp})..."
                     )
                     posts = run_competitor_posts(
-                        comp["slug"], max_posts=max_posts_comp, cutoff_date=cutoff_date_comp
+                        comp["slug"], max_posts=max_posts_comp, cutoff_date=cutoff_date_comp,
+                        showcase=comp.get("showcase", False)
                     )
                     total_posts_found += len(posts)
 
@@ -1020,11 +1031,8 @@ with tab4:
         "giorni migliori e post più performanti. Usa questi dati per costruire il tuo piano editoriale."
     )
 
-    # --- COMPETITOR (riusa session_state dal Tab 3) ---
+    # --- COMPETITOR (riusa session_state) ---
     st.markdown("### 1️⃣ Competitor")
-    if "competitors" not in st.session_state:
-        st.session_state.competitors = [dict(c) for c in DEFAULT_COMPETITORS]
-
     st.caption("Attiva/disattiva i competitor da analizzare. I competitor senza pagina LinkedIn ufficiale sono marcati 🚫 e disattivati.")
     pe_cols = st.columns([2, 3, 1])
     pe_cols[0].markdown("**Competitor**")

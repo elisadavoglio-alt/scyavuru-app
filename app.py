@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 from openpyxl import Workbook
-from openpyxl.styles import PatternFill, Font
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 import io
 import re
 import requests
@@ -64,6 +65,130 @@ def hunt_email(first_name: str, last_name: str, company_name: str) -> str:
     except Exception:
         return "Non trovata"
 
+
+# --- UTILITY EXCEL: COSTRUISCE EXCEL FORMATTATO PER ESTRAZIONE ---
+def _build_excel_scraping(df: pd.DataFrame, ruolo: str) -> io.BytesIO:
+    """Genera un Excel formattato con: intestazioni in grassetto, larghezze auto,
+    link LinkedIn cliccabili, colore verde per email Apify, arancio per Hunter,
+    grigio per 'Non trovata'."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Estrazione_{ruolo[:20]}"
+
+    # Stili
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="2E4053", end_color="2E4053", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    border = Border(
+        left=Side(style="thin", color="BDBDBD"),
+        right=Side(style="thin", color="BDBDBD"),
+        top=Side(style="thin", color="BDBDBD"),
+        bottom=Side(style="thin", color="BDBDBD")
+    )
+
+    fill_apify  = PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid")   # verde
+    fill_hunter = PatternFill(start_color="FDEBD0", end_color="FDEBD0", fill_type="solid")   # arancio
+    fill_none   = PatternFill(start_color="F2F3F4", end_color="F2F3F4", fill_type="solid")   # grigio
+
+    cols = list(df.columns)
+    email_col_idx = cols.index("Email") + 1 if "Email" in cols else None
+    fonte_col_idx = cols.index("Fonte Email") + 1 if "Fonte Email" in cols else None
+    link_col_idx  = cols.index("Link Profilo") + 1 if "Link Profilo" in cols else None
+
+    # Intestazioni
+    ws.row_dimensions[1].height = 30
+    for c_idx, col_name in enumerate(cols, 1):
+        cell = ws.cell(row=1, column=c_idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = border
+
+    # Dati
+    for r_idx, row_vals in enumerate(df.values.tolist(), 2):
+        fonte_val = ""
+        if fonte_col_idx:
+            fonte_val = str(row_vals[fonte_col_idx - 1])
+
+        for c_idx in range(1, len(cols) + 1):
+            value = row_vals[c_idx - 1]
+
+            cell = ws.cell(row=r_idx, column=c_idx, value=value)
+            cell.alignment = Alignment(vertical="center", wrap_text=False)
+            cell.border = border
+
+            # Colore email
+            if email_col_idx and c_idx == email_col_idx:
+                if fonte_val == "Apify":
+                    cell.fill = fill_apify
+                    cell.font = Font(color="1A5276")  # blu scuro
+                elif fonte_val == "Hunter":
+                    cell.fill = fill_hunter
+                    cell.font = Font(color="784212")  # marrone
+                else:
+                    cell.fill = fill_none
+                    cell.font = Font(color="909090", italic=True)
+
+            # Link cliccabile per profilo LinkedIn
+            if link_col_idx and c_idx == link_col_idx and value:
+                cell.value = value
+                cell.hyperlink = value
+                cell.font = Font(color="1155CC", underline="single")
+
+    # Larghezze automatiche (cap a 50)
+    for c_idx, col_name in enumerate(cols, 1):
+        col_data = [str(col_name)] + [str(v) if v else "" for v in df.iloc[:, c_idx - 1]]
+        max_len = min(max(len(s) for s in col_data), 50)
+        ws.column_dimensions[get_column_letter(c_idx)].width = max_len + 2
+
+    # Freeze prima riga
+    ws.freeze_panes = "A2"
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+# --- FILTRI BOOLEANI: funzione riutilizzabile a livello modulo ---
+def _apply_boolean_filters(df: pd.DataFrame, must_include: str, must_exclude: str) -> pd.DataFrame:
+    """Filtra il dataframe con logica AND/OR/NOT sui campi Qualifica e Azienda.
+
+    Sintassi:
+      - Virgola = OR  (es. 'buyer, category' → buyer OR category)
+      - '+'     = AND (es. 'buyer + food'    → buyer AND food nel SAME profilo)
+      - NOT     = campo must_exclude, virgola-separato
+    """
+    if df.empty:
+        return df
+
+    mask = pd.Series([True] * len(df), index=df.index)
+
+    def _text(row):
+        return (
+            str(row.get("Qualifica", "") or "") + " " +
+            str(row.get("Azienda", "") or "")
+        ).lower()
+
+    # NOT: esclude chi contiene almeno uno dei termini esclusi
+    if must_exclude.strip():
+        for term in [t.strip().lower() for t in must_exclude.split(",") if t.strip()]:
+            mask &= ~df.apply(lambda r, t=term: t in _text(r), axis=1)
+
+    # AND/OR: virgola = OR tra gruppi; '+' = AND dentro un gruppo
+    if must_include.strip():
+        or_groups = [g.strip() for g in must_include.split(",") if g.strip()]
+        include_mask = pd.Series([False] * len(df), index=df.index)
+        for group in or_groups:
+            and_terms = [t.strip().lower() for t in group.split("+") if t.strip()]
+            and_mask = pd.Series([True] * len(df), index=df.index)
+            for term in and_terms:
+                and_mask &= df.apply(lambda r, t=term: t in _text(r), axis=1)
+            include_mask |= and_mask
+        mask &= include_mask
+
+    return df[mask].reset_index(drop=True)
+
+
 def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_api_key: str=None):
     if not apify_api_key:
         apify_api_key = APIFY_API_KEY
@@ -81,7 +206,8 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
         "searchQuery": search_query,
         "locations": [location],
         "maxItems": min(max_profili, 1000),
-        "mode": "Full + email search"
+        # Parametro corretto per HarvestAPI: attiva ricerca email SMTP-verificata
+        "profileScraperMode": "Full + email search"
     }
 
     run = client.actor("harvestapi/linkedin-profile-search").call(run_input=run_input)
@@ -112,27 +238,52 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
         # URL profilo: campo corretto è linkedinUrl
         linkedin_url = item.get("linkedinUrl", "") or ""
         
-        # Email: prima da Apify, poi fallback su Hunter.io
-        emails_list = item.get("emails", []) or []
-        email = emails_list[0] if emails_list else ""
-        if not email:
+        # Email: HarvestAPI restituisce lista di dict
+        # es: {'email': 'x@y.com', 'qualityScore': 100, 'status': 'risky', 'catchAllDomain': True, ...}
+        email_apify = ""
+        email_fonte = ""
+        email_score = ""
+        emails_raw = item.get("emails", []) or []
+        if emails_raw:
+            first_email = emails_raw[0]
+            if isinstance(first_email, dict):
+                email_apify = first_email.get("email", "") or first_email.get("value", "") or ""
+                score = first_email.get("qualityScore", "")
+                status = first_email.get("status", "")
+                if score != "":
+                    email_score = f"{score}% ({status})" if status else f"{score}%"
+            else:
+                email_apify = str(first_email)
+            if email_apify:
+                email_fonte = "Apify"
+
+        if not email_apify:
             # Fallback: Hunter.io cerca con nome + dominio azienda
-            email = hunt_email(fn.strip(), ln.strip(), co_name)
+            email_apify = hunt_email(fn.strip(), ln.strip(), co_name)
+            if email_apify and email_apify != "Non trovata":
+                email_fonte = "Hunter"
+                email_score = ""
+            else:
+                email_apify = "Non trovata"
+                email_fonte = ""
+                email_score = ""
         
         # Location: è un oggetto annidato
         loc_obj = item.get("location", {}) or {}
         if isinstance(loc_obj, dict):
-            location = loc_obj.get("linkedinText", "") or ""
+            location_str = loc_obj.get("linkedinText", "") or ""
         else:
-            location = str(loc_obj)
+            location_str = str(loc_obj)
 
         results.append({
             "Categoria (Ricerca)": ruolo,
             "Nome": nome,
             "Qualifica": qualifica,
             "Azienda": co_name,
-            "Location": location,
-            "Email": email,
+            "Location": location_str,
+            "Email": email_apify,
+            "Score Email": email_score,
+            "Fonte Email": email_fonte,
             "Link Profilo": linkedin_url
         })
 
@@ -147,37 +298,85 @@ tab1, tab2 = st.tabs(["🔍 Estrazione Lead (Scraping)", "🧹 Pulizia Database 
 with tab1:
     st.header("Estrazione Autonoma da LinkedIn (via Apify)")
     st.markdown("Usa questo strumento per cercare nuovi contatti. Inserisci la qualifica, il paese e l'API Key.")
-    
-    col_a, col_b = st.columns(2)
+
+    # --- SEZIONE PARAMETRI BASE ---
+    col_a, col_b = st.columns([3, 1])
     with col_a:
-        ruolo_input = st.text_input("Qualifica da cercare (es. Buyer Food, Category Manager)", value="Buyer Food")
-        azienda_input = st.text_input("Azienda Specifica (Opzionale, es. Esselunga)", value="")
-        location_input = st.text_input("Nazione / Città (es. Italy, Milan)", value="Italy")
-    
+        ruolo_input = st.text_input("🎯 Qualifica da cercare (es. Buyer Food, Category Manager)", value="Buyer Food")
+        azienda_input = st.text_input("🏢 Azienda Specifica (Opzionale)", value="")
+        location_input = st.text_input("📍 Nazione / Città (es. Italy, Milan)", value="Italy")
     with col_b:
-        max_profili_input = st.number_input("Numero Massimo di Profili", min_value=1, max_value=100, value=20)
+        max_profili_input = st.number_input("# Profili", min_value=1, max_value=1000, value=20)
+
+    # --- SEZIONE FILTRI BOOLEANI ---
+    with st.expander("🔬 Filtri Booleani Avanzati (AND / OR / NOT)", expanded=False):
+        st.markdown("""
+        Questi filtri vengono applicati **dopo lo scraping** sui campi **Qualifica** e **Azienda**.
+        Puoi combinare più condizioni con operatori logici.
+        """)
+        st.markdown("**Regole di sintassi:**")
+        st.markdown("""
+        - Virgola `,` = **OR** → almeno una parola deve comparire
+        - `+` = **AND** → tutte le parole devono comparire nello stesso profilo
+        - `-` davanti = **NOT** → la parola NON deve comparire
         
-    if st.button("🛰️ Avvia Scraping"):
-        with st.spinner('Scraping in corso... Ricerca profili e aggiramento blocchi...'):
+        *Esempio: `buyer, category manager` → OR | `buyer + food` → AND | `-marketing` → NOT*
+        """)
+
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            must_include_raw = st.text_input(
+                "✅ DEVE contenere (AND/OR)",
+                value="",
+                placeholder="es: buyer + food, category manager",
+                help="Usa virgola per OR, '+' per AND. Es: 'buyer, category' significa buyer OR category."
+            )
+        with col_f2:
+            must_exclude_raw = st.text_input(
+                "🚫 NON DEVE contenere (NOT)",
+                value="",
+                placeholder="es: marketing, hr, recruiting",
+                help="Profili che contengono queste parole vengono esclusi."
+            )
+
+    st.info("📧 **Ricerca email attiva** — SMTP-verificata via HarvestAPI. Costo extra: ~$0.01/profilo.")
+
+    if st.button("🛰️ Avvia Scraping", type="primary"):
+        with st.spinner("Scraping in corso... ricerca profili + email verificate..."):
             try:
                 risultati = run_search(ruolo_input, azienda_input, location_input, max_profili_input)
                 if risultati:
                     df_scraping = pd.DataFrame(risultati)
-                    st.success(f"Trovati {len(risultati)} profili!")
-                    st.dataframe(df_scraping)
-                    
-                    # Export Excel Base
-                    output_scraping = io.BytesIO()
-                    with pd.ExcelWriter(output_scraping, engine="openpyxl") as writer:
-                        df_scraping.to_excel(writer, index=False, sheet_name="Estrazione")
-                    output_scraping.seek(0)
-                    
+                    tot_grezzo = len(df_scraping)
+
+                    # --- APPLICA FILTRI BOOLEANI (funzione definita a livello modulo) ---
+                    df_filtrato = _apply_boolean_filters(df_scraping, must_include_raw, must_exclude_raw)
+                    tot_filtrato = len(df_filtrato)
+                    eliminati = tot_grezzo - tot_filtrato
+
+                    # --- STATISTICHE ---
+                    trovate = (df_filtrato["Email"] != "Non trovata").sum() if "Email" in df_filtrato.columns else 0
+                    da_apify = (df_filtrato["Fonte Email"] == "Apify").sum() if "Fonte Email" in df_filtrato.columns else 0
+                    da_hunter = (df_filtrato["Fonte Email"] == "Hunter").sum() if "Fonte Email" in df_filtrato.columns else 0
+
+                    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+                    col_s1.metric("👥 Profili grezzi", tot_grezzo)
+                    col_s2.metric("✅ Dopo filtri", tot_filtrato, delta=f"-{eliminati}" if eliminati else None)
+                    col_s3.metric("📧 Email trovate", f"{trovate}/{tot_filtrato}")
+                    col_s4.metric("🟢 Apify / 🟠 Hunter", f"{da_apify} / {da_hunter}")
+
+                    if eliminati > 0:
+                        st.caption(f"🔬 Filtri booleani attivi: rimossi {eliminati} profili fuori target.")
+
+                    st.dataframe(df_filtrato, use_container_width=True)
+
+                    # Export Excel Formattato
+                    output_scraping = _build_excel_scraping(df_filtrato, ruolo_input)
                     st.download_button(
-                        label="📥 Scarica Excel Grezzo",
+                        label="📥 Scarica Excel Formattato",
                         data=output_scraping,
                         file_name=f"Estrazione_{ruolo_input.replace(' ', '_')}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        type="secondary"
                     )
                 else:
                     st.info("Nessun profilo trovato con questi criteri.")
@@ -244,7 +443,8 @@ with tab2:
                             
                     df_clean = pd.DataFrame(valid_rows)
                     
-                    cols_to_drop = [c for c in df_clean.columns if 'email' in c.lower()]
+                    # Rimuove solo la colonna Email (non Score/Fonte) — il tab Pulizia lavora su file già puliti
+                    cols_to_drop = [c for c in df_clean.columns if c.lower() == 'email']
                     df_clean.drop(columns=cols_to_drop, inplace=True, errors='ignore')
                     
                     df_clean['Nome_str'] = df_clean.get('Nome', '').astype(str).str.strip().str.title()

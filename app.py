@@ -12,11 +12,13 @@ st.set_page_config(page_title="Scyavuru Lead Manager", page_icon="🍯", layout=
 COLORS = ["E6F2FF", "FFF2E6", "E6FFE6", "FFE6E6", "F2E6FF", "FFFFE6", "E6FFFF", "FFE6FF", "F0F0F0", "E6F9FF"]
 
 # Competitor pre-caricati (slug LinkedIn — modificabili dall'utente nell'UI)
+# NOTA: lo slug per i POST può differire da quello usato per le reactions (Tab 3).
+# Formato testato e verificato con harvestapi/linkedin-company-posts.
 DEFAULT_COMPETITORS = [
-    {"nome": "Fiasconaro",       "slug": "fiasconaro"},
-    {"nome": "Pisti by Nutcao", "slug": "pisti-antichi-sapori-dell-etna"},
-    {"nome": "Marullo",          "slug": "marullo"},
-    {"nome": "Damiani",          "slug": "damiani-1946"},
+    {"nome": "Fiasconaro",       "slug": "fiasconaro-s.r.l."},
+    {"nome": "Pisti by Nutcao", "slug": "pisti-by-nutcao"},
+    {"nome": "Marullo",          "slug": "marullo-sicily"},
+    {"nome": "Damiani",          "slug": "damiani"},
     {"nome": "Vasetto.it",       "slug": "vasetto-it"},
     {"nome": "Bacco",            "slug": "bacco-srl"},
     {"nome": "Bronte Dolci",     "slug": "bronte-dolci"},
@@ -321,6 +323,11 @@ def run_competitor_posts(company_slug: str, max_posts: int = 10,
     """Scarica i post recenti di una company LinkedIn tramite HarvestAPI.
     Restituisce lista di dict con postUrl, testo, engagement.
     Se cutoff_date (formato 'YYYY-MM-DD') è fornita, esclude i post antecedenti.
+
+    Nota: l'API restituisce campi annidati:
+      - engagement: {'likes': N, 'comments': N, 'shares': N, ...}
+      - postedAt:   {'date': 'YYYY-MM-DDTHH:MM:SS.mmmZ', 'timestamp': N, ...}
+      - linkedinUrl: URL diretto del post
     """
     if not apify_api_key:
         apify_api_key = APIFY_API_KEY
@@ -340,30 +347,50 @@ def run_competitor_posts(company_slug: str, max_posts: int = 10,
         dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "defaultDatasetId", None)
         posts = []
         for item in client.dataset(dataset_id).iterate_items():
-            post_url = item.get("postUrl") or item.get("url") or ""
+            # --- URL del post ---
+            post_url = (item.get("linkedinUrl")
+                        or item.get("shareLinkedinUrl")
+                        or item.get("postUrl")
+                        or item.get("url") or "")
             if not post_url:
                 continue
-            text_raw = item.get("text") or item.get("content") or ""
-            snippet = text_raw[:120].replace("\n", " ") + ("..." if len(text_raw) > 120 else "")
-            date_str = str(item.get("postedAt") or item.get("date") or "")[:10]
 
-            # Filtro temporale: salta post antecedenti alla data di cutoff
-            if cutoff_date and date_str:
+            # --- Testo ---
+            text_raw = item.get("content") or item.get("text") or ""
+            snippet = text_raw[:120].replace("\n", " ") + ("..." if len(text_raw) > 120 else "")
+
+            # --- Data: postedAt può essere un dict {'date': '2026-05-29T...'} ---
+            posted_at_raw = item.get("postedAt") or item.get("date") or ""
+            if isinstance(posted_at_raw, dict):
+                date_str = str(posted_at_raw.get("date", ""))[:10]
+            else:
+                date_str = str(posted_at_raw)[:10]
+
+            # Filtro temporale
+            if cutoff_date and date_str and len(date_str) == 10:
                 try:
                     if datetime.strptime(date_str, "%Y-%m-%d") < datetime.strptime(cutoff_date, "%Y-%m-%d"):
                         continue
                 except ValueError:
-                    pass  # data non parsabile: includi il post
+                    pass
 
-            likes    = item.get("likesCount") or item.get("likes") or 0
-            comments = item.get("commentsCount") or item.get("comments") or 0
+            # --- Engagement: può essere un dict {'likes': N, 'comments': N, ...} ---
+            eng_raw = item.get("engagement") or {}
+            if isinstance(eng_raw, dict):
+                likes    = int(eng_raw.get("likes",    0) or 0)
+                comments = int(eng_raw.get("comments", 0) or 0)
+                shares   = int(eng_raw.get("shares",   0) or 0)
+            else:
+                likes    = int(item.get("likesCount")    or item.get("likes")    or 0)
+                comments = int(item.get("commentsCount") or item.get("comments") or 0)
+                shares   = 0
 
-            # Estrai hashtag dal testo
+            # --- Hashtag ---
             hashtags = re.findall(r'#\w+', text_raw)
 
-            # Giorno della settimana
+            # --- Giorno della settimana ---
             weekday = ""
-            if date_str:
+            if date_str and len(date_str) == 10:
                 try:
                     _days = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
                     weekday = _days[datetime.strptime(date_str, "%Y-%m-%d").weekday()]
@@ -371,15 +398,16 @@ def run_competitor_posts(company_slug: str, max_posts: int = 10,
                     pass
 
             posts.append({
-                "postUrl":   post_url,
-                "full_text": text_raw,
-                "snippet":   snippet,
-                "hashtags":  hashtags,
-                "likes":     likes,
-                "comments":  comments,
-                "engagement": likes + comments,
-                "date":      date_str,
-                "weekday":   weekday,
+                "postUrl":    post_url,
+                "full_text":  text_raw,
+                "snippet":    snippet,
+                "hashtags":   hashtags,
+                "likes":      likes,
+                "comments":   comments,
+                "shares":     shares,
+                "engagement": likes + comments + shares,
+                "date":       date_str,
+                "weekday":    weekday,
             })
         return posts
     except Exception as e:
@@ -1216,18 +1244,19 @@ with tab4:
 
                 # ── SEZIONE 6: TUTTI I POST COMPLETI ─────────────────────
                 st.markdown("### 📋 Tutti i post (testo completo)")
-                sort_pe_cols = [c for c in ["Competitor", "date", "engagement", "likes", "comments"] if c in df_posts.columns]
+                sort_pe_cols = [c for c in ["Competitor", "date", "engagement", "likes", "comments", "shares"] if c in df_posts.columns]
                 sort_pe_sel  = st.multiselect(
                     "📊 Ordina per", options=sort_pe_cols,
                     default=["Competitor", "engagement"],
                     key="sort_tab4"
                 )
-                df_full_display = _sort_df(df_posts, [(c, c not in ["engagement","likes","comments"]) for c in sort_pe_sel])
+                df_full_display = _sort_df(df_posts, [(c, c not in ["engagement","likes","comments","shares"]) for c in sort_pe_sel])
 
-                show_cols = ["Competitor", "date", "weekday", "likes", "comments", "engagement", "snippet", "hashtags", "postUrl"]
+                show_cols = ["Competitor", "date", "weekday", "likes", "comments", "shares", "engagement", "snippet", "hashtags", "postUrl"]
                 show_cols = [c for c in show_cols if c in df_full_display.columns]
                 rename_map = {"date": "Data", "weekday": "Giorno", "likes": "Like",
-                              "comments": "Commenti", "engagement": "Engagement",
+                              "comments": "Commenti", "shares": "Condivisioni",
+                              "engagement": "Engagement",
                               "snippet": "Anteprima", "hashtags": "Hashtag", "postUrl": "Link"}
                 df_full_display = df_full_display[show_cols].rename(columns=rename_map)
                 st.dataframe(df_full_display, use_container_width=True, hide_index=True)
@@ -1284,9 +1313,14 @@ with tab4:
                 # Foglio per ogni competitor
                 for ci_comp, comp_name in enumerate(df_posts["Competitor"].unique()):
                     df_comp_sheet = df_posts[df_posts["Competitor"] == comp_name].copy()
-                    df_comp_sheet = df_comp_sheet[["date","weekday","likes","comments","engagement","snippet","full_text","hashtags","postUrl"]].copy()
+                    exp_cols = [c for c in ["date","weekday","likes","comments","shares","engagement","snippet","full_text","hashtags","postUrl"] if c in df_comp_sheet.columns]
+                    df_comp_sheet = df_comp_sheet[exp_cols].copy()
                     df_comp_sheet["hashtags"] = df_comp_sheet["hashtags"].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
-                    df_comp_sheet.columns = ["Data","Giorno","Like","Commenti","Engagement","Anteprima","Testo completo","Hashtag","Link"]
+                    col_labels = {"date": "Data", "weekday": "Giorno", "likes": "Like",
+                                  "comments": "Commenti", "shares": "Condivisioni",
+                                  "engagement": "Engagement", "snippet": "Anteprima",
+                                  "full_text": "Testo completo", "hashtags": "Hashtag", "postUrl": "Link"}
+                    df_comp_sheet.columns = [col_labels.get(c, c) for c in exp_cols]
                     df_comp_sheet = df_comp_sheet.sort_values("Engagement", ascending=False).reset_index(drop=True)
                     color = COLORS[ci_comp % len(COLORS)]
                     _write_sheet(wb_pe, comp_name[:31], df_comp_sheet, fill_color=color)

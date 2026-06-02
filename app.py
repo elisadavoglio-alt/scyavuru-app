@@ -19,8 +19,7 @@ DEFAULT_COMPETITORS = [
     {"nome": "Marullo",      "slug": "marullo-spa",       "linkedin_posts": True},   # ✅ verificato
     {"nome": "Vasetto.it",   "slug": "vasetto",           "linkedin_posts": False},  # pagina esiste ma 0 post (scraper bloccato)
     {"nome": "Bacco",        "slug": "baccosrl",          "linkedin_posts": False},  # pagina esiste ma 0 post (scraper bloccato)
-    {"nome": "Bronte Dolci", "slug": "pistacchio-di-bronte-biologico", "linkedin_posts": False,
-                              "showcase": True},  # pagina /showcase/ non supportata dall'actor
+    {"nome": "Bronte Dolci", "slug": "bronte-dolci-srl",          "linkedin_posts": False},  # pagina esiste ma 0 post (scraper bloccato)
 ]
 
 # Sincronizzazione globale di st.session_state.competitors all'avvio

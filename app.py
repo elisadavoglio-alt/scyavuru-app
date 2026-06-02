@@ -53,19 +53,33 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
 
     results = []
     for item in items:
-        nome = f"{item.get("firstName", "")} {item.get("lastName", "")}".strip()
+        nome = f"{item.get('firstName', '')} {item.get('lastName', '')}".strip()
         qualifica = item.get("headline", "N/D")
-        co_name = item.get("company", "Da verificare")
-        linkedin_url = item.get("url", "")
-        email = item.get("email", "Non trovata")
+        
+        # L'azienda si trova nei positions (esperienza attuale)
+        positions = item.get("positions", []) or []
+        if positions:
+            co_name = positions[0].get("companyName", "Da verificare")
+        else:
+            co_name = item.get("company", "Da verificare") or "Da verificare"
+        
+        # URL profilo
+        linkedin_url = item.get("url", "") or item.get("linkedinUrl", "") or ""
+        
+        # Email (disponibile solo in modalità premium Apify)
+        email = item.get("email", "") or ""
         if not email:
             email = "Non trovata"
+        
+        # Location
+        location = item.get("location", "") or ""
 
         results.append({
             "Categoria (Ricerca)": ruolo,
             "Nome": nome,
             "Qualifica": qualifica,
             "Azienda": co_name,
+            "Location": location,
             "Email": email,
             "Link Profilo": linkedin_url
         })

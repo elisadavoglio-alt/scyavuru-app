@@ -53,26 +53,32 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
 
     results = []
     for item in items:
-        nome = f"{item.get('firstName', '')} {item.get('lastName', '')}".strip()
-        qualifica = item.get("headline", "N/D")
+        fn = item.get("firstName", "") or ""
+        ln = item.get("lastName", "") or ""
+        nome = (fn.strip().title() + " " + ln.strip().title()).strip()
         
-        # L'azienda si trova nei positions (esperienza attuale)
-        positions = item.get("positions", []) or []
-        if positions:
-            co_name = positions[0].get("companyName", "Da verificare")
+        qualifica = item.get("headline", "N/D") or "N/D"
+        
+        # Azienda: campo corretto è currentPosition (non positions)
+        current_pos = item.get("currentPosition", []) or []
+        if current_pos:
+            co_name = current_pos[0].get("companyName", "Da verificare") or "Da verificare"
         else:
-            co_name = item.get("company", "Da verificare") or "Da verificare"
+            co_name = "Da verificare"
         
-        # URL profilo
-        linkedin_url = item.get("url", "") or item.get("linkedinUrl", "") or ""
+        # URL profilo: campo corretto è linkedinUrl
+        linkedin_url = item.get("linkedinUrl", "") or ""
         
-        # Email (disponibile solo in modalità premium Apify)
-        email = item.get("email", "") or ""
-        if not email:
-            email = "Non trovata"
+        # Email: è una lista, prendiamo il primo elemento se esiste
+        emails_list = item.get("emails", []) or []
+        email = emails_list[0] if emails_list else "Non trovata"
         
-        # Location
-        location = item.get("location", "") or ""
+        # Location: è un oggetto annidato
+        loc_obj = item.get("location", {}) or {}
+        if isinstance(loc_obj, dict):
+            location = loc_obj.get("linkedinText", "") or ""
+        else:
+            location = str(loc_obj)
 
         results.append({
             "Categoria (Ricerca)": ruolo,

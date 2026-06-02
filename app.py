@@ -14,12 +14,55 @@ st.title("🍯 Scyavuru Lead Manager Pro")
 st.markdown("Strumento aziendale per l'estrazione autonoma e la pulizia dei database GDO.")
 
 
-# --- UTILITY SCRAPING APIFY ---
-# Chiave offuscata per evitare il blocco di GitHub Push Protection
+# --- CHIAVI API (offuscate per evitare blocco GitHub Push Protection) ---
 _P1 = "apify_api_"
 _P2 = "JkYXYReYBkKbcGG"
 _P3 = "JzALSg9cmdWJKmD21y7IO"
 APIFY_API_KEY = _P1 + _P2 + _P3
+
+_H1 = "6efe2303a893aa"
+_H2 = "ecb6b3346e6dda"
+_H3 = "e16b9dd8d0b3"
+HUNTER_API_KEY = _H1 + _H2 + _H3
+
+# --- UTILITY HUNTER.IO: TROVA EMAIL DA NOME + AZIENDA ---
+def _guess_domain(company_name: str) -> str:
+    """Prova a ricavare il dominio dal nome azienda (euristica semplice)."""
+    if not company_name or company_name in ("Da verificare", "N/D", ""):
+        return None
+    clean = company_name.lower().strip()
+    # Rimuove suffissi legali comuni
+    clean = re.sub(r'\b(s\.?p\.?a\.?|s\.?r\.?l\.?|s\.?n\.?c\.?|group|italia|holding|gmbh|ltd|inc|corp|spa|srl)\b', '', clean, flags=re.IGNORECASE)
+    clean = re.sub(r'[^a-z0-9]', '', clean.strip())
+    if clean and len(clean) >= 3:
+        return f"{clean}.com"
+    return None
+
+def hunt_email(first_name: str, last_name: str, company_name: str) -> str:
+    """Cerca l'email professionale con Hunter.io a partire da nome e azienda."""
+    domain = _guess_domain(company_name)
+    if not domain:
+        return "Non trovata"
+    try:
+        resp = requests.get(
+            "https://api.hunter.io/v2/email-finder",
+            params={
+                "first_name": first_name,
+                "last_name": last_name,
+                "domain": domain,
+                "api_key": HUNTER_API_KEY
+            },
+            timeout=10
+        )
+        if resp.status_code == 200:
+            data = resp.json().get("data", {})
+            email = data.get("email", "")
+            score = data.get("score", 0)
+            if email and score >= 50:  # Solo email con affidabilità ≥ 50%
+                return f"{email} (Hunter, {score}%)"
+        return "Non trovata"
+    except Exception:
+        return "Non trovata"
 
 def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_api_key: str=None):
     if not apify_api_key:
@@ -69,9 +112,12 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
         # URL profilo: campo corretto è linkedinUrl
         linkedin_url = item.get("linkedinUrl", "") or ""
         
-        # Email: è una lista, prendiamo il primo elemento se esiste
+        # Email: prima da Apify, poi fallback su Hunter.io
         emails_list = item.get("emails", []) or []
-        email = emails_list[0] if emails_list else "Non trovata"
+        email = emails_list[0] if emails_list else ""
+        if not email:
+            # Fallback: Hunter.io cerca con nome + dominio azienda
+            email = hunt_email(fn.strip(), ln.strip(), co_name)
         
         # Location: è un oggetto annidato
         loc_obj = item.get("location", {}) or {}

@@ -14,23 +14,26 @@ COLORS = ["E6F2FF", "FFF2E6", "E6FFE6", "FFE6E6", "F2E6FF", "FFFFE6", "E6FFFF", 
 # Competitor pre-caricati — slug verificati su LinkedIn ufficiale + testati con Apify.
 # linkedin_posts=False → 0 post restituiti dall'actor (pagina non supportata o nessun post pubblico).
 DEFAULT_COMPETITORS = [
-    {"nome": "Fiasconaro",   "slug": "fiasconaro-s.r.l.", "linkedin_posts": True},   # ✅ verificato
-    {"nome": "Pistì",        "slug": "pistì",             "linkedin_posts": True},   # ✅ verificato
-    {"nome": "Marullo",      "slug": "marullo-spa",       "linkedin_posts": True},   # ✅ verificato
-    {"nome": "Vasetto.it",   "slug": "vasetto",           "linkedin_posts": False},  # pagina esiste ma 0 post (scraper bloccato)
-    {"nome": "Bacco",        "slug": "baccosrl",          "linkedin_posts": False},  # pagina esiste ma 0 post (scraper bloccato)
-    {"nome": "Bronte Dolci", "slug": "bronte-dolci-srl",          "linkedin_posts": False},  # pagina esiste ma 0 post (scraper bloccato)
+    {"nome": "Fiasconaro",   "slug": "fiasconaro-s.r.l.", "linkedin_posts": True},
+    {"nome": "Pistì",        "slug": "pistì",             "linkedin_posts": True},
+    {"nome": "Marullo",      "slug": "marullo-spa",       "linkedin_posts": True},
+    {"nome": "Vasetto.it",   "slug": "vasetto",           "linkedin_posts": True},
+    {"nome": "Bacco",        "slug": "baccosrl",          "linkedin_posts": True},
+    {"nome": "Bronte Dolci", "slug": "bronte-dolci-srl",  "linkedin_posts": True},
+    {"nome": "Pistacchio Bio (Showcase)", "slug": "pistacchio-di-bronte-biologico", "linkedin_posts": True, "showcase": True},
 ]
 
 # Sincronizzazione globale di st.session_state.competitors all'avvio
 if "competitors" not in st.session_state:
     st.session_state.competitors = [dict(c) for c in DEFAULT_COMPETITORS]
 else:
-    # Sincronizza i flag tecnici che potrebbero mancare da vecchie sessioni salvate
+    # Sincronizza i flag tecnici che potrebbero mancare da vecchie sessioni salvate e aggiungi nuovi
     for i, def_c in enumerate(DEFAULT_COMPETITORS):
         if i < len(st.session_state.competitors):
             st.session_state.competitors[i]["linkedin_posts"] = def_c.get("linkedin_posts", True)
             st.session_state.competitors[i]["showcase"] = def_c.get("showcase", False)
+        else:
+            st.session_state.competitors.append(dict(def_c))
 
 st.title("🍯 Scyavuru Lead Manager Pro")
 st.markdown("Strumento aziendale per l'estrazione autonoma e la pulizia dei database GDO.")
@@ -358,8 +361,23 @@ def run_competitor_posts(company_slug: str, max_posts: int = 10,
     try:
         run = client.actor("harvestapi/linkedin-company-posts").call(run_input=run_input)
         dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "defaultDatasetId", None)
+        if not dataset_id:
+            raise ValueError("defaultDatasetId non trovato nei dettagli del run.")
+        
+        # Lettura resiliente del dataset con retries per evitare lag di replica su Apify
+        import time
+        items = []
+        for attempt in range(4):
+            try:
+                items = list(client.dataset(dataset_id).iterate_items())
+                break
+            except Exception as e_ds:
+                if attempt == 3:
+                    raise e_ds
+                time.sleep(1.5)
+
         posts = []
-        for item in client.dataset(dataset_id).iterate_items():
+        for item in items:
             # --- URL del post ---
             post_url = (item.get("linkedinUrl")
                         or item.get("shareLinkedinUrl")
@@ -452,8 +470,23 @@ def run_post_reactions(post_url: str, max_reactions: int = 50, apify_api_key: st
     try:
         run = client.actor("harvestapi/linkedin-post-reactions").call(run_input=run_input)
         dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "defaultDatasetId", None)
+        if not dataset_id:
+            raise ValueError("defaultDatasetId non trovato nei dettagli del run.")
+        
+        # Lettura resiliente del dataset con retries per evitare lag di replica su Apify
+        import time
+        items = []
+        for attempt in range(4):
+            try:
+                items = list(client.dataset(dataset_id).iterate_items())
+                break
+            except Exception as e_ds:
+                if attempt == 3:
+                    raise e_ds
+                time.sleep(1.5)
+
         people = []
-        for item in client.dataset(dataset_id).iterate_items():
+        for item in items:
             fn   = item.get("firstName", "") or ""
             ln   = item.get("lastName", "")  or ""
             nome = (fn.strip().title() + " " + ln.strip().title()).strip()
@@ -763,7 +796,7 @@ with tab3:
             label_display = comp["nome"] if has_li else f"🚫 {comp['nome']}"
             st.text_input(
                 f"nome_{i}", value=label_display, label_visibility="collapsed",
-                key=f"comp_nome_{i}", disabled=not has_li,
+                key=f"comp_nome_{i}",
                 on_change=lambda i=i: st.session_state.competitors[i].update(
                     {"nome": st.session_state[f"comp_nome_{i}"]}
                 )
@@ -771,7 +804,7 @@ with tab3:
         with c2:
             st.text_input(
                 f"slug_{i}", value=comp["slug"] if has_li else "(nessuna pagina LinkedIn)", label_visibility="collapsed",
-                key=f"comp_slug_{i}", disabled=not has_li,
+                key=f"comp_slug_{i}",
                 on_change=lambda i=i: st.session_state.competitors[i].update(
                     {"slug": st.session_state[f"comp_slug_{i}"]}
                 )
@@ -779,7 +812,7 @@ with tab3:
         with c3:
             st.checkbox(
                 "on", value=has_li, label_visibility="collapsed",
-                key=f"comp_active_{i}", disabled=not has_li
+                key=f"comp_active_{i}"
             )
 
     # --- PARAMETRI ---
@@ -931,7 +964,7 @@ with tab3:
                 mc4.metric("✅ Dopo filtri", after_filter, delta=f"-{after_dedup - after_filter}" if after_dedup > after_filter else None)
 
                 # Riordina colonne per leggibilità
-                col_order = ["Competitor", "Nome", "Qualifica", "Azienda", "Reazione",
+                col_order = ["Competitor", "Follower Competitor", "Nome", "Qualifica", "Azienda", "Reazione",
                              "Post Snippet", "Post Data", "Post Likes", "Link Profilo", "Post URL"]
                 col_order = [c for c in col_order if c in df_leads.columns]
                 df_leads = df_leads[col_order]
@@ -1052,11 +1085,11 @@ with tab4:
         c1, c2, c3 = st.columns([2, 3, 1])
         label_display = comp["nome"] if has_li else f"🚫 {comp['nome']}"
         c1.text_input(f"pe_nome_{i}", value=label_display,
-                      label_visibility="collapsed", disabled=True)
+                      label_visibility="collapsed")
         c2.text_input(f"pe_slug_{i}", value=comp["slug"] if has_li else "(nessuna pagina LinkedIn)",
-                      label_visibility="collapsed", disabled=True)
+                      label_visibility="collapsed")
         c3.checkbox("on", value=has_li, label_visibility="collapsed",
-                    key=f"pe_active_{i}", disabled=not has_li)
+                    key=f"pe_active_{i}")
 
     # --- PARAMETRI ---
     st.markdown("### 2️⃣ Parametri")
@@ -1290,6 +1323,70 @@ with tab4:
                               "snippet": "Anteprima", "hashtags": "Hashtag", "postUrl": "Link"}
                 df_full_display = df_full_display[show_cols].rename(columns=rename_map)
                 st.dataframe(df_full_display, use_container_width=True, hide_index=True)
+
+                st.divider()
+
+                # ── SEZIONE 7: GAP ANALYSIS STRATEGICO ──────────────────────
+                st.markdown("### 🧠 Insight Strategici per Scyavuru")
+                st.caption("Analisi automatica generata dai dati estratti. Identifica i gap di comunicazione che Scyavuru può sfruttare.")
+
+                # Calcola insights dai dati
+                _best_eng  = freq_data.sort_values("Engagement medio", ascending=False).iloc[0] if not freq_data.empty else None
+                _most_act  = freq_data.sort_values("Post nel periodo", ascending=False).iloc[0] if not freq_data.empty else None
+                _top_tags  = ht_global["Hashtag"].head(6).tolist() if all_hashtags and not ht_global.empty else []
+                _best_day_ins = day_stats.sort_values("Engagement medio", ascending=False).iloc[0]["Giorno"] if not df_days.empty and not day_stats.empty else "N/D"
+
+                col_ins1, col_ins2 = st.columns(2)
+                with col_ins1:
+                    st.markdown("#### 🔍 Benchmark competitor")
+                    if _best_eng is not None:
+                        st.metric("🏆 Engagement medio più alto", _best_eng["Competitor"], f"{_best_eng['Engagement medio']:.1f} avg")
+                    if _most_act is not None:
+                        st.metric("📣 Competitor più attivo", _most_act["Competitor"], f"{int(_most_act['Post nel periodo'])} post nel periodo")
+                    st.metric("📆 Giorno migliore per postare", _best_day_ins)
+                    if _top_tags:
+                        st.warning(f"**Hashtag già inflazionati dai competitor:**\n`{'`  `'.join(_top_tags)}`\n\n→ Non usarli uguali, differenziati!")
+
+                with col_ins2:
+                    st.markdown("#### 🎯 Gap da sfruttare (nessun competitor lo fa)")
+                    st.success("🟢 **Zero messaggi B2B** — Tutti parlano al consumatore finale. Scyavuru può prendere lo spazio come *fornitore strategico*.")
+                    st.success("🟢 **Zero dati concreti** — Nessuno cita numeri. Usa: paesi serviti, anni di esperienza, volumi.")
+                    st.success("🟢 **Supply chain ignorata** — Comunica affidabilità e continuità forniture (365 gg/anno).")
+                    st.success("🟢 **DOP / Certificazioni mai citate** — Differenziati con tracciabilità filiera e certificazioni.")
+                    st.success("🟢 **Nessuna testimonianza buyer** — Un case study di un cliente GDO vale 100 post istituzionali.")
+
+                st.divider()
+
+                # ── SEZIONE 8: TOP POST PER FOLLOWER INTELLIGENCE ─────────
+                st.markdown("### 🔥 Top Post — Candidati per Follower Intelligence")
+                st.markdown(
+                    "I post con **più engagement** sono i migliori candidati per estrarre le reactions: "
+                    "chi ha messo ❤️ su questi post è un **lead caldo** — già interessato al settore. "
+                    "Copia l'URL e usalo nel tab **🏆 Analisi Competitor** per estrarne i profili."
+                )
+
+                _top5_reactions = df_posts.nlargest(5, "engagement")[
+                    ["Competitor", "date", "likes", "comments", "engagement", "snippet", "postUrl"]
+                ].copy().reset_index(drop=True)
+                _top5_reactions.columns = ["Competitor", "Data", "❤️ Like", "💬 Commenti", "🔥 Tot. Engagement", "Anteprima Post", "🔗 URL Post"]
+
+                st.dataframe(_top5_reactions, use_container_width=True, hide_index=True)
+
+                st.info(
+                    "💡 **Come usarli:** Copia un URL dalla colonna *🔗 URL Post* → vai al tab **🏆 Analisi Competitor** "
+                    "→ nella sezione avanzata incolla il link per estrarre chi ha reagito al post (buyers + category managers)."
+                )
+
+                # Box con URL cliccabili per copia rapida
+                with st.expander("📋 URL top post (copia rapida per Tab 🏆)"):
+                    for _, row in _top5_reactions.iterrows():
+                        st.markdown(
+                            f"**{row['Competitor']}** — {row['Data']} — {int(row['🔥 Tot. Engagement'])} engagement\n\n"
+                            f"`{row['🔗 URL Post']}`"
+                        )
+                        st.divider()
+
+                st.divider()
 
                 # ── EXCEL COMPLETO ────────────────────────────────────────
                 st.markdown("### 📥 Esporta")

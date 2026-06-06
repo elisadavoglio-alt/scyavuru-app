@@ -90,6 +90,33 @@ def hunt_email(first_name: str, last_name: str, company_name: str) -> str:
         return "Non trovata"
 
 
+def extract_dataset_id(run) -> str:
+    """Estrae in modo resiliente il defaultDatasetId dal run di Apify.
+    Supporta camelCase, snake_case, dict, o oggetti custom.
+    """
+    if not run:
+        return None
+    # 1. Se ha il metodo .get (dict o simili)
+    if hasattr(run, "get"):
+        val = run.get("defaultDatasetId") or run.get("default_dataset_id")
+        if val:
+            return val
+    # 2. Se supporta l'accesso tramite chiavi
+    if hasattr(run, "__getitem__"):
+        for key in ["defaultDatasetId", "default_dataset_id"]:
+            try:
+                val = run[key]
+                if val:
+                    return val
+            except:
+                pass
+    # 3. Fallback ad attributi dell'oggetto (per oggetti SDK personalizzati)
+    return getattr(run, "defaultDatasetId", getattr(run, "default_dataset_id", None))
+
+
+
+
+
 # --- UTILITY EXCEL: COSTRUISCE EXCEL FORMATTATO PER ESTRAZIONE ---
 def _build_excel_scraping(df: pd.DataFrame, ruolo: str) -> io.BytesIO:
     """Genera un Excel formattato con: intestazioni in grassetto, larghezze auto,
@@ -250,11 +277,7 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
 
     run = client.actor("harvestapi/linkedin-profile-search").call(run_input=run_input)
     
-    # Gestione compatibilità vecchie e nuove versioni di apify-client
-    if isinstance(run, dict):
-        dataset_id = run.get("defaultDatasetId")
-    else:
-        dataset_id = getattr(run, "defaultDatasetId", getattr(run, "default_dataset_id", None))
+    dataset_id = extract_dataset_id(run)
         
     items = client.dataset(dataset_id).iterate_items()
 
@@ -360,9 +383,9 @@ def run_competitor_posts(company_slug: str, max_posts: int = 10,
     }
     try:
         run = client.actor("harvestapi/linkedin-company-posts").call(run_input=run_input)
-        dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "defaultDatasetId", None)
+        dataset_id = extract_dataset_id(run)
         if not dataset_id:
-            raise ValueError("defaultDatasetId non trovato nei dettagli del run.")
+            raise ValueError("defaultDatasetId non trovato nei dettagli del run o run non valido.")
         
         # Lettura resiliente del dataset con retries per evitare lag di replica su Apify
         import time
@@ -470,9 +493,9 @@ def run_post_reactions(post_url: str, max_reactions: int = 50, apify_api_key: st
     }
     try:
         run = client.actor("apimaestro/linkedin-post-reactions").call(run_input=run_input)
-        dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "defaultDatasetId", None)
+        dataset_id = extract_dataset_id(run)
         if not dataset_id:
-            raise ValueError("defaultDatasetId non trovato nei dettagli del run.")
+            raise ValueError("defaultDatasetId non trovato nei dettagli del run o run non valido.")
         
         # Lettura resiliente del dataset con retries per evitare lag di replica su Apify
         import time

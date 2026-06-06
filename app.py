@@ -463,12 +463,13 @@ def run_post_reactions(post_url: str, max_reactions: int = 50, apify_api_key: st
     from apify_client import ApifyClient
     client = ApifyClient(apify_api_key)
 
+    # Utilizziamo l'actor apimaestro/linkedin-post-reactions che è stabile e non richiede cookies
     run_input = {
-        "postUrls": [post_url],
-        "maxReactions": max_reactions,
+        "post_urls": [post_url],
+        "max_reactions": max_reactions,
     }
     try:
-        run = client.actor("harvestapi/linkedin-post-reactions").call(run_input=run_input)
+        run = client.actor("apimaestro/linkedin-post-reactions").call(run_input=run_input)
         dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "defaultDatasetId", None)
         if not dataset_id:
             raise ValueError("defaultDatasetId non trovato nei dettagli del run.")
@@ -487,17 +488,27 @@ def run_post_reactions(post_url: str, max_reactions: int = 50, apify_api_key: st
 
         people = []
         for item in items:
-            fn   = item.get("firstName", "") or ""
-            ln   = item.get("lastName", "")  or ""
-            nome = (fn.strip().title() + " " + ln.strip().title()).strip()
+            # apimaestro/linkedin-post-reactions restituisce i dati dell'utente nidificati sotto 'reactor'
+            reactor = item.get("reactor", {}) or {}
+            
+            nome = reactor.get("name", "") or item.get("name", "") or ""
             if not nome:
-                nome = item.get("name", "") or ""
+                fn = item.get("firstName", "") or ""
+                ln = item.get("lastName", "") or ""
+                nome = (fn.strip().title() + " " + ln.strip().title()).strip()
+            
+            qualifica = reactor.get("headline") or item.get("headline") or item.get("title") or "N/D"
+            azienda = reactor.get("companyName") or item.get("companyName") or item.get("company") or "Da verificare"
+            
+            profile_url = reactor.get("profile_url") or item.get("linkedinUrl") or item.get("profileUrl") or ""
+            reazione = item.get("reaction_type") or item.get("reactionType") or "Like"
+            
             people.append({
                 "Nome":         nome,
-                "Qualifica":    item.get("headline") or item.get("title") or "N/D",
-                "Azienda":      item.get("companyName") or item.get("company") or "Da verificare",
-                "Link Profilo": item.get("linkedinUrl") or item.get("profileUrl") or "",
-                "Reazione":     item.get("reactionType") or "Like",
+                "Qualifica":    qualifica,
+                "Azienda":      azienda,
+                "Link Profilo": profile_url,
+                "Reazione":     reazione,
             })
         return people
     except Exception as e:

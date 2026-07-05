@@ -896,38 +896,96 @@ with tab1:
     st.header("Estrazione Autonoma da LinkedIn (via Apify)")
     st.markdown("Usa questo strumento per cercare nuovi contatti. Inserisci la qualifica, il paese e l'API Key.")
 
-    # --- PALETTE DI PAROLE CHIAVE CONSIGLIATE ---
+    # --- PALETTE DI PAROLE CHIAVE CONSIGLIATE (DINAMICA) ---
     st.markdown("### 💡 Parole Chiave Consigliate (Clicca per selezionare)")
     
-    # Inizializza session_state per parola chiave
-    if "selected_keyword" not in st.session_state:
-        st.session_state["selected_keyword"] = "Buyer Food"
-        
-    with st.expander("🌍 Mercato Internazionale (GDO / Export)", expanded=False):
-        int_keywords = [
+    KEYWORDS_FILE = "keywords_scyavuru.json"
+    default_keywords = {
+        "internazionale": [
             "Buyer Sweet Grocery", "Category Manager Sweet Grocery", "Buyer Confectionery & Breakfast",
             "Buyer Confectionery", "Buyer Biscuits & Spreads", "Ambient Grocery Buyer",
             "International Buyer Grocery", "Global Sourcing Manager Confectionery", "Import Manager Food",
             "Category Manager Spreads & Jams", "Gourmet Food Buyer", "Fine Food Buyer",
             "Confectionery Category Manager"
-        ]
-        cols_int = st.columns(3)
-        for idx, kw in enumerate(int_keywords):
-            if cols_int[idx % 3].button(kw, key=f"kw_int_btn_{idx}"):
-                st.session_state["selected_keyword"] = kw
-                st.rerun()
-                
-    with st.expander("🇮🇹 Mercato Italiano (GDO / DO / Centrali d'acquisto)", expanded=False):
-        it_keywords = [
+        ],
+        "italiano": [
             "Buyer Food", "Category Manager Food", "Responsabile Acquisti Alimentari Confezionati",
             "Buyer Alimentari Confezionati", "Category Manager Drogheria Alimentare", "Buyer Generi Vari",
             "Buyer Dolciario", "Category Manager Dolciario", "Responsabile Acquisti Drogheria",
             "Buyer Specialità Alimentari", "HoReCa Purchasing Manager", "Responsabile Acquisti HoReCa"
         ]
-        cols_it = st.columns(3)
-        for idx, kw in enumerate(it_keywords):
-            if cols_it[idx % 3].button(kw, key=f"kw_it_btn_{idx}"):
-                st.session_state["selected_keyword"] = kw
+    }
+    
+    import json
+    import os
+    if not os.path.exists(KEYWORDS_FILE):
+        with open(KEYWORDS_FILE, "w", encoding="utf-8") as f:
+            json.dump(default_keywords, f)
+            
+    with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+        kw_data = json.load(f)
+        
+    # Inizializza session_state per parola chiave
+    if "selected_keyword" not in st.session_state:
+        st.session_state["selected_keyword"] = "Buyer Food"
+        
+    with st.expander("🌍 Mercato Internazionale (GDO / Export)", expanded=False):
+        int_keywords = kw_data.get("internazionale", [])
+        if int_keywords:
+            cols_int = st.columns(3)
+            for idx, kw in enumerate(int_keywords):
+                if cols_int[idx % 3].button(kw, key=f"kw_int_btn_{idx}"):
+                    st.session_state["selected_keyword"] = kw
+                    st.rerun()
+        else:
+            st.info("Nessuna parola chiave per il mercato internazionale.")
+                
+    with st.expander("🇮🇹 Mercato Italiano (GDO / DO / Centrali d'acquisto)", expanded=False):
+        it_keywords = kw_data.get("italiano", [])
+        if it_keywords:
+            cols_it = st.columns(3)
+            for idx, kw in enumerate(it_keywords):
+                if cols_it[idx % 3].button(kw, key=f"kw_it_btn_{idx}"):
+                    st.session_state["selected_keyword"] = kw
+                    st.rerun()
+        else:
+            st.info("Nessuna parola chiave per il mercato italiano.")
+            
+    with st.expander("⚙️ Gestisci Lista Parole Chiave (Aggiungi/Rimuovi)", expanded=False):
+        st.markdown("##### ➕ Aggiungi nuova Parola Chiave")
+        col_new_k1, col_new_k2 = st.columns([3, 1])
+        new_k_text = col_new_k1.text_input("Parola Chiave:", key="new_keyword_text_input")
+        new_k_cat = col_new_k2.selectbox("Mercato:", ["Internazionale", "Italiano"], key="new_keyword_cat_select")
+        
+        if st.button("Aggiungi Parola", key="btn_add_kw_scy"):
+            if new_k_text.strip():
+                cat_key = "internazionale" if new_k_cat == "Internazionale" else "italiano"
+                if new_k_text.strip() not in kw_data[cat_key]:
+                    kw_data[cat_key].append(new_k_text.strip())
+                    with open(KEYWORDS_FILE, "w", encoding="utf-8") as f:
+                        json.dump(kw_data, f)
+                    st.success(f"Aggiunta con successo: {new_k_text.strip()}")
+                    st.rerun()
+                    
+        st.markdown("##### 🗑️ Rimuovi Parola Chiave esistente")
+        all_kw_options = []
+        for kw in kw_data.get("internazionale", []):
+            all_kw_options.append(f"🌍 {kw}")
+        for kw in kw_data.get("italiano", []):
+            all_kw_options.append(f"🇮🇹 {kw}")
+            
+        kw_to_remove = st.selectbox("Seleziona parola da rimuovere:", ["-- Seleziona --"] + all_kw_options, key="kw_to_remove_select")
+        if st.button("Rimuovi Parola", key="btn_remove_kw_scy"):
+            if kw_to_remove != "-- Seleziona --":
+                clean_kw = kw_to_remove[3:]
+                if kw_to_remove.startswith("🌍") and clean_kw in kw_data["internazionale"]:
+                    kw_data["internazionale"].remove(clean_kw)
+                elif kw_to_remove.startswith("🇮🇹") and clean_kw in kw_data["italiano"]:
+                    kw_data["italiano"].remove(clean_kw)
+                    
+                with open(KEYWORDS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(kw_data, f)
+                st.success(f"Rimossa con successo: {clean_kw}")
                 st.rerun()
                 
     st.markdown("---")

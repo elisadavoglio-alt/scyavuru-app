@@ -2176,18 +2176,19 @@ with tab6:
     
     import json
     import os
+    import re
 
     TODO_FILE = "todo_scyavuru.json"
     
     default_tasks = {
-        "1. Sincronizzare rubrica di Rosario tramite l'App Mobile LinkedIn (escludendo contatti non pertinenti)": False,
-        "2. Rivedere i testi della pagina Company (NON aspettare i vettoriali)": False,
-        "3. Raccogliere fisicamente le Segnalazioni scritte dagli amici/partner e farle pubblicare": False,
-        "4. Iniziare a scrivere i testi descrittivi per i nuovi Cataloghi (partendo dal file Excel)": False,
-        "5. Creazione annuncio 'Job Posting' mirato (es. Export Manager GDO) per raccogliere lead": False,
-        "6. Avviare commenti tattici e Repost 'Con Pensiero' sui profili dei partner": False,
-        "7. Attivazione Demo Sales Navigator (SOLO quando i cataloghi sono pronti)": False,
-        "8. Inizio pubblicazione Post ufficiali di Rosario (SOLO dopo aver raggiunto 150-200 contatti)": False
+        "Sincronizzare rubrica di Rosario tramite l'App Mobile LinkedIn (escludendo contatti non pertinenti)": False,
+        "Rivedere i testi della pagina Company (NON aspettare i vettoriali)": False,
+        "Raccogliere fisicamente le Segnalazioni scritte dagli amici/partner e farle pubblicare": False,
+        "Iniziare a scrivere i testi descrittivi per i nuovi Cataloghi (partendo dal file Excel)": False,
+        "Creazione annuncio 'Job Posting' mirato (es. Export Manager GDO) per raccogliere lead": False,
+        "Avviare commenti tattici e Repost 'Con Pensiero' sui profili dei partner": False,
+        "Attivazione Demo Sales Navigator (SOLO quando i cataloghi sono pronti)": False,
+        "Inizio pubblicazione Post ufficiali di Rosario (SOLO dopo aver raggiunto 150-200 contatti)": False
     }
 
     if not os.path.exists(TODO_FILE):
@@ -2208,14 +2209,26 @@ with tab6:
     if isinstance(tasks, dict):
         new_list = []
         for idx, (t_name, t_state) in enumerate(tasks.items(), 1):
+            clean_name = re.sub(r'^\d+\.\s*', '', t_name).strip()
             new_list.append({
-                "name": t_name,
+                "name": clean_name,
                 "completed": t_state,
                 "priority": idx
             })
         tasks = new_list
         with open(TODO_FILE, "w", encoding="utf-8") as f:
             json.dump(tasks, f)
+    else:
+        # Pulisci anche i nomi se sono già in lista
+        changed = False
+        for t in tasks:
+            clean_name = re.sub(r'^\d+\.\s*', '', t["name"]).strip()
+            if t["name"] != clean_name:
+                t["name"] = clean_name
+                changed = True
+        if changed:
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
             
     # Risorse utili
     st.subheader("📎 Risorse Rapide")

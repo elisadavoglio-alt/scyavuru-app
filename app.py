@@ -2237,22 +2237,16 @@ with tab6:
 
     st.subheader("✅ Task List Operativa")
     
-    # Form per aggiungere nuove task con priorità
+    # Form per aggiungere nuove task (senza numeri di priorità)
     with st.form("add_new_task_scyavuru", clear_on_submit=True):
-        col_a1, col_a2, col_a3 = st.columns([3, 1, 1])
+        col_a1, col_a2 = st.columns([4, 1])
         new_task_text = col_a1.text_input("📝 Aggiungi una nuova priorità / task:")
-        
-        # Proponi come priorità il valore successivo al massimo attuale
-        max_prio = max([t.get("priority", 0) for t in tasks]) if tasks else 0
-        new_task_priority = col_a2.number_input("Priorità:", min_value=1, value=max_prio + 1, step=1)
-        
-        submit_add = col_a3.form_submit_button("Aggiungi")
+        submit_add = col_a2.form_submit_button("Aggiungi")
         if submit_add and new_task_text.strip():
             if not any(t["name"] == new_task_text.strip() for t in tasks):
                 tasks.append({
                     "name": new_task_text.strip(),
-                    "completed": False,
-                    "priority": int(new_task_priority)
+                    "completed": False
                 })
                 with open(TODO_FILE, "w", encoding="utf-8") as f:
                     json.dump(tasks, f)
@@ -2260,33 +2254,39 @@ with tab6:
             
     st.write("") # spacing
     
-    # Ordina le task per priorità ascendente
-    tasks_sorted = sorted(tasks, key=lambda x: x.get("priority", 999))
-    
+    # Rimuovi chiave priority se presente per pulizia
+    if tasks and isinstance(tasks, list) and "priority" in tasks[0]:
+        tasks = sorted(tasks, key=lambda x: x.get("priority", 999))
+        for t in tasks:
+            t.pop("priority", None)
+        with open(TODO_FILE, "w", encoding="utf-8") as f:
+            json.dump(tasks, f)
+            
     updated_tasks_list = []
-    for item in tasks_sorted:
+    for idx, item in enumerate(tasks):
         t_name = item["name"]
         t_completed = item.get("completed", False)
-        t_priority = item.get("priority", 1)
         
-        c_check, c_prio, c_name, c_del = st.columns([1, 1.2, 5, 1])
+        c_check, c_up, c_down, c_name, c_del = st.columns([1, 0.7, 0.7, 5, 1])
         
         # Checkbox per completato
         checked = c_check.checkbox("", value=t_completed, key=f"chk_scy_{hash(t_name)}")
         if checked != t_completed:
-            for t in tasks:
-                if t["name"] == t_name:
-                    t["completed"] = checked
+            tasks[idx]["completed"] = checked
             with open(TODO_FILE, "w", encoding="utf-8") as f:
                 json.dump(tasks, f)
             st.rerun()
             
-        # Input numerico per priorità temporale
-        new_p = c_prio.number_input("Ord.", min_value=1, value=t_priority, step=1, key=f"prio_scy_{hash(t_name)}", label_visibility="collapsed")
-        if new_p != t_priority:
-            for t in tasks:
-                if t["name"] == t_name:
-                    t["priority"] = int(new_p)
+        # Up button (▲)
+        if c_up.button("▲", key=f"up_scy_{idx}", disabled=(idx == 0)):
+            tasks[idx], tasks[idx-1] = tasks[idx-1], tasks[idx]
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
+            st.rerun()
+            
+        # Down button (▼)
+        if c_down.button("▼", key=f"down_scy_{idx}", disabled=(idx == len(tasks) - 1)):
+            tasks[idx], tasks[idx+1] = tasks[idx+1], tasks[idx]
             with open(TODO_FILE, "w", encoding="utf-8") as f:
                 json.dump(tasks, f)
             st.rerun()
@@ -2299,7 +2299,7 @@ with tab6:
         import hashlib
         task_hash = hashlib.md5(t_name.encode('utf-8')).hexdigest()[:10]
         if c_del.button("🗑️", key=f"del_scy_{task_hash}"):
-            tasks = [t for t in tasks if t["name"] != t_name]
+            tasks.pop(idx)
             with open(TODO_FILE, "w", encoding="utf-8") as f:
                 json.dump(tasks, f)
             st.rerun()

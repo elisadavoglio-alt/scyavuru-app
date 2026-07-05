@@ -2065,7 +2065,11 @@ with tab5:
         "Trova i post più caldi su LinkedIn per commentare e le query in crescita su Google Trends per trovare nuove idee per i tuoi post."
     )
     
-    tab_trend_li, tab_trend_go = st.tabs(["🔥 LinkedIn Post Search", "📊 Google Trends Scraper"])
+    tab_trend_li, tab_trend_go, tab_trend_partner = st.tabs([
+        "🔥 LinkedIn Post Search", 
+        "📊 Google Trends Scraper", 
+        "🤝 Monitoraggio Pagine GDO (Partner)"
+    ])
     
     with tab_trend_li:
         st.markdown("### 🔍 Trova Post da Commentare (LinkedIn Post Search)")
@@ -2162,9 +2166,147 @@ with tab5:
                                 )
                                 st.info(idea_text)
                         else:
-                            st.info("Nessuna query correlata in crescita trovata per questo periodo. Prova con termini più ampi (es. 'pistacchio').")
+                            st.info("Nessuna query correlata in crescita trouvata per questo periodo. Prova con termini più ampi (es. 'pistacchio').")
                     except Exception as e:
                         st.error(f"Errore durante l'analisi dei trend: {e}")
+                        
+    with tab_trend_partner:
+        st.markdown("### 🤝 Monitoraggio Pagine GDO (Partner)")
+        st.markdown("Monitora le pagine aziendali ufficiali delle insegne retail partner. Estrai i loro ultimi post per commentare o fare repost al volo con bozze scritte dall'IA.")
+        
+        PARTNERS_FILE = "partners_gdo_scyavuru.json"
+        default_partners = [
+            {"nome": "Coop Italia", "slug": "coop-italia"},
+            {"nome": "Conad", "slug": "conad"},
+            {"nome": "Esselunga", "slug": "esselunga"},
+            {"nome": "Carrefour Italia", "slug": "carrefour-italia"},
+            {"nome": "MD S.p.A.", "slug": "md-s-p-a-"}
+        ]
+        
+        if not os.path.exists(PARTNERS_FILE):
+            with open(PARTNERS_FILE, "w", encoding="utf-8") as f:
+                json.dump(default_partners, f)
+                
+        with open(PARTNERS_FILE, "r", encoding="utf-8") as f:
+            partners_gdo = json.load(f)
+            
+        # UI per la selezione dei partner da scansionare
+        partner_names = [p["nome"] for p in partners_gdo]
+        selected_partners = st.multiselect(
+            "🏢 Seleziona le pagine aziendali GDO da scansionare:",
+            options=partner_names,
+            default=partner_names[:3],
+            key="partners_to_scan_select"
+        )
+        
+        col_scan1, col_scan2 = st.columns([3, 1])
+        with col_scan1:
+            max_posts_scan = st.slider("📄 Post da analizzare per pagina", min_value=1, max_value=10, value=3, key="partners_scan_limit_slider")
+        with col_scan2:
+            st.write("") # spacing
+            
+        if st.button("🚀 Avvia Controllo Pagine GDO", type="primary", key="btn_run_partners_scan"):
+            if not selected_partners:
+                st.warning("Seleziona almeno un partner da scansionare.")
+            else:
+                with st.spinner("Scansione delle pagine aziendali in corso..."):
+                    any_post_found = False
+                    for p_name in selected_partners:
+                        partner_slug = next(p["slug"] for p in partners_gdo if p["nome"] == p_name)
+                        st.markdown(f"#### 🏢 **{p_name}** (`{partner_slug}`)")
+                        try:
+                            posts = run_competitor_posts(partner_slug, max_posts=max_posts_scan)
+                            if posts:
+                                any_post_found = True
+                                for idx, post in enumerate(posts):
+                                    with st.container():
+                                        st.write(f"📅 Post #{idx+1} — Data: {post.get('date', 'N/D')} | 👍 Likes: {post.get('likes', 0)} | 💬 Commenti: {post.get('comments', 0)}")
+                                        st.info(f"📝 **Anteprima Testo:** {post.get('snippet', '')}")
+                                        
+                                        # Genera bozza commento IA per Rosario
+                                        snippet_text = post.get('snippet', '').lower()
+                                        if "sostenib" in snippet_text or "ambiente" in snippet_text or "esg" in snippet_text:
+                                            comment_suggest = (
+                                                f"\"Complimenti a {p_name} per questa iniziativa. Nel settore alimentare la sostenibilità "
+                                                f"deve essere integrata in tutta la catena del valore. Dal nostro punto di vista come partner industriali B2B, "
+                                                f"supportiamo i nostri clienti riducendo l'impronta carbonica del packaging e ottimizzando i processi di produzione.\""
+                                            )
+                                            repost_suggest = (
+                                                f"Condivido con piacere questa iniziativa di {p_name}. La transizione ecologica nel retail alimentare "
+                                                f"è una responsabilità comune. In Scyavuru crediamo che l'innovazione sostenibile della filiera sia "
+                                                f"la chiave per creare valore duraturo per il consumatore finale."
+                                            )
+                                        elif "mdd" in snippet_text or "private label" in snippet_text or "marchio" in snippet_text:
+                                            comment_suggest = (
+                                                f"\"Spunto molto interessante. La crescita della MDD dimostra come il consumatore cerchi qualità eccellente "
+                                                f"e valore concreto. La sfida per noi produttori partner è garantire una flessibilità industriale "
+                                                f"e ricette su misura (es. clean label) per far risaltare il brand del distributore sullo scaffale.\""
+                                            )
+                                            repost_suggest = (
+                                                f"Ottima analisi da parte di {p_name} sullo sviluppo delle linee a marchio. Il Private Label non è più solo convenienza, "
+                                                f"ma un brand a tutti gli effetti che richiede innovazione costante e partner industriali affidabili. Ecco la nostra visione..."
+                                            )
+                                        else:
+                                            comment_suggest = (
+                                                f"\"Riflessione molto condivisibile. L'evoluzione dei consumi richiede prontezza e standard qualitativi "
+                                                f"altissimi lungo tutta la catena produttiva. Como co-produttori B2B lavoriamo ogni giorno a stretto contatto "
+                                                f"con le insegne per anticipare queste richieste.\""
+                                            )
+                                            repost_suggest = (
+                                                f"Seguo con molto interesse l'evoluzione delle strategie di {p_name}. Un esempio concreto di come "
+                                                f"il retail alimentare si stia adattando ai nuovi comportamenti d'acquisto dei consumatori. Cosa ne pensate?"
+                                            )
+                                            
+                                        col_b1, col_b2 = st.columns(2)
+                                        with col_b1:
+                                            st.markdown("💬 **Bozza Commento AI per Rosario:**")
+                                            st.code(comment_suggest, language="text")
+                                        with col_b2:
+                                            st.markdown("🔁 **Bozza Repost con Pensiero:**")
+                                            st.code(repost_suggest, language="text")
+                                            
+                                        if post.get("postUrl"):
+                                            st.link_button("🔗 Apri e Interagisci su LinkedIn", post["postUrl"])
+                                        st.divider()
+                            else:
+                                st.info("Nessun post recente trovato per questa pagina aziendale.")
+                        except Exception as e_p:
+                            st.warning(f"Non è stato possibile caricare i post di {p_name}: {e_p}")
+                    if not any_post_found:
+                        st.info("Nessun post trovato per le pagine selezionate.")
+                        
+        # Sezione di gestione dei partner
+        with st.expander("⚙️ Aggiungi / Rimuovi Pagine GDO Monitorate", expanded=False):
+            st.markdown("##### ➕ Aggiungi Nuova Pagina GDO")
+            col_add_p1, col_add_p2 = st.columns([2, 2])
+            new_p_name = col_add_p1.text_input("Nome Insegna (es. Esselunga):", key="new_partner_name_input")
+            new_p_slug = col_add_p2.text_input("Slug LinkedIn (es. esselunga):", key="new_partner_slug_input", help="Lo trovi nell'URL: linkedin.com/company/slug-qui")
+            
+            if st.button("Aggiungi Insegna Partner", key="btn_add_partner_gdo"):
+                if new_p_name.strip() and new_p_slug.strip():
+                    if not any(p["slug"] == new_p_slug.strip() for p in partners_gdo):
+                        partners_gdo.append({
+                            "nome": new_p_name.strip(),
+                            "slug": new_p_slug.strip()
+                        })
+                        with open(PARTNERS_FILE, "w", encoding="utf-8") as f:
+                            json.dump(partners_gdo, f)
+                        st.success(f"Insegna aggiunta: {new_p_name.strip()}")
+                        st.rerun()
+                        
+            st.markdown("##### 🗑️ Rimuovi Insegna Monitorata")
+            partner_to_del = st.selectbox(
+                "Seleziona insegna da rimuovere:",
+                options=["-- Seleziona --"] + [p["nome"] for p in partners_gdo],
+                key="partner_to_del_select"
+            )
+            if st.button("Rimuovi Insegna Partner", key="btn_del_partner_gdo"):
+                if partner_to_del != "-- Seleziona --":
+                    partners_gdo = [p for p in partners_gdo if p["nome"] != partner_to_del]
+                    with open(PARTNERS_FILE, "w", encoding="utf-8") as f:
+                        json.dump(partners_gdo, f)
+                    st.success(f"Insegna rimossa: {partner_to_del}")
+                    st.rerun()
 
 
 # ----------------------------------------------------

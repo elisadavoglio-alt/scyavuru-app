@@ -538,12 +538,262 @@ def run_post_reactions(post_url: str, max_reactions: int = 50, apify_api_key: st
         raise RuntimeError(f"Errore reactions {post_url}: {e}")
 
 
+def run_profile_details(profile_url: str, apify_api_key: str = None) -> dict:
+    """Estrae dettagli del profilo LinkedIn (Headline, About, Esperienze, Skill ed Endorsement)
+    usando l'actor harvestapi/linkedin-profile-scraper (cookieless e low-cost).
+    """
+    if not apify_api_key:
+        apify_api_key = APIFY_API_KEY
+    from apify_client import ApifyClient
+    client = ApifyClient(apify_api_key)
+    run_input = {
+        "urls": [profile_url],
+        "profileScraperMode": "Profile details no email"
+    }
+    try:
+        run = client.actor("harvestapi/linkedin-profile-scraper").call(run_input=run_input)
+        dataset_id = extract_dataset_id(run)
+        if not dataset_id:
+            raise ValueError("defaultDatasetId non trovato nei dettagli del run di profilo.")
+        
+        import time
+        items = []
+        for attempt in range(4):
+            try:
+                items = list(client.dataset(dataset_id).iterate_items())
+                break
+            except Exception as e_ds:
+                if attempt == 3:
+                    raise e_ds
+                time.sleep(1.5)
+        
+        if not items:
+            return None
+        
+        item = items[0]
+        
+        first_name = item.get("firstName", "") or ""
+        last_name = item.get("lastName", "") or ""
+        full_name = f"{first_name} {last_name}".strip()
+        
+        headline = item.get("headline", "") or "N/D"
+        about = item.get("about", "") or item.get("summary", "") or ""
+        
+        # Skills
+        skills_raw = item.get("skills", []) or []
+        skills = []
+        for s in skills_raw:
+            if isinstance(s, dict):
+                s_name = s.get("name", "") or s.get("title", "") or ""
+                s_end = s.get("endorsementsCount") or s.get("endorsementCount", 0) or 0
+                if s_name:
+                    skills.append({"name": s_name, "endorsements": s_end})
+            elif isinstance(s, str):
+                skills.append({"name": s, "endorsements": 0})
+        skills = sorted(skills, key=lambda x: x["endorsements"], reverse=True)
+        
+        # Experiences
+        exp_raw = item.get("experiences", []) or item.get("positions", []) or []
+        experiences = []
+        for e in exp_raw:
+            if isinstance(e, dict):
+                title = e.get("title", "") or ""
+                company = e.get("companyName") or e.get("company", "") or ""
+                start = e.get("startDate", {}) or e.get("start", {}) or {}
+                start_str = f"{start.get('month', '')}/{start.get('year', '')}" if isinstance(start, dict) else str(start)
+                end = e.get("endDate", {}) or e.get("end", {}) or {}
+                end_str = f"{end.get('month', '')}/{end.get('year', '')}" if isinstance(end, dict) else str(end)
+                if not end_str or end_str.strip() == "/":
+                    end_str = "Presente"
+                desc = e.get("description", "") or ""
+                experiences.append({
+                    "title": title,
+                    "company": company,
+                    "duration": f"{start_str} - {end_str}".strip(" -/"),
+                    "description": desc
+                })
+        
+        return {
+            "name": full_name,
+            "headline": headline,
+            "about": about,
+            "skills": skills,
+            "experiences": experiences,
+            "url": profile_url
+        }
+    except Exception as e:
+        raise RuntimeError(f"Errore estrazione profilo {profile_url}: {e}")
+
+
+def run_profile_posts(profile_url: str, max_items: int = 10, apify_api_key: str = None) -> list:
+    """Estrae gli ultimi post pubblicati da un profilo LinkedIn
+    usando l'actor harvestapi/linkedin-profile-posts (cookieless e low-cost).
+    """
+    if not apify_api_key:
+        apify_api_key = APIFY_API_KEY
+    from apify_client import ApifyClient
+    client = ApifyClient(apify_api_key)
+    run_input = {
+        "profileUrls": [profile_url],
+        "maxItems": max_items
+    }
+    try:
+        run = client.actor("harvestapi/linkedin-profile-posts").call(run_input=run_input)
+        dataset_id = extract_dataset_id(run)
+        if not dataset_id:
+            raise ValueError("defaultDatasetId non trovato nei dettagli del run di post.")
+        
+        import time
+        items = []
+        for attempt in range(4):
+            try:
+                items = list(client.dataset(dataset_id).iterate_items())
+                break
+            except Exception as e_ds:
+                if attempt == 3:
+                    raise e_ds
+                time.sleep(1.5)
+                
+        posts = []
+        for item in items:
+            text = item.get("text", "") or item.get("commentary", "") or item.get("content", "") or ""
+            post_url = item.get("postUrl", "") or item.get("url", "") or ""
+            date_str = item.get("postedAt", "") or item.get("date", "") or item.get("publishedAt", "") or ""
+            if date_str and len(date_str) > 10:
+                date_str = date_str[:10]
+                
+            likes = item.get("numLikes") or item.get("likesCount") or item.get("reactionsCount") or 0
+            comments = item.get("numComments") or item.get("commentsCount") or item.get("comments", 0) or 0
+            shares = item.get("numShares") or item.get("sharesCount") or item.get("shares", 0) or 0
+            
+            posts.append({
+                "url": post_url,
+                "text": text,
+                "date": date_str,
+                "likes": likes,
+                "comments": comments,
+                "shares": shares,
+                "engagement": likes + comments + shares
+            })
+        return posts
+    except Exception as e:
+        raise RuntimeError(f"Errore estrazione post per {profile_url}: {e}")
+
+
+def run_linkedin_post_search(query: str, max_posts: int = 10, apify_api_key: str = None) -> list:
+    """Cerca post su LinkedIn che contengono determinate keyword o hashtag
+    usando l'actor tugkan/linkedin-posts-scraper (o simile) per estrarre discussioni calde.
+    """
+    if not apify_api_key:
+        apify_api_key = APIFY_API_KEY
+    from apify_client import ApifyClient
+    client = ApifyClient(apify_api_key)
+    
+    run_input = {
+        "keywords": [query],
+        "limit": max_posts,
+    }
+    try:
+        run = client.actor("tugkan/linkedin-posts-scraper").call(run_input=run_input)
+        dataset_id = extract_dataset_id(run)
+        if not dataset_id:
+            raise ValueError("defaultDatasetId non trovato nei dettagli del run di post search.")
+        
+        import time
+        items = []
+        for attempt in range(4):
+            try:
+                items = list(client.dataset(dataset_id).iterate_items())
+                break
+            except Exception as e_ds:
+                if attempt == 3:
+                    raise e_ds
+                time.sleep(1.5)
+                
+        posts = []
+        for item in items:
+            text = item.get("text", "") or item.get("commentary", "") or ""
+            post_url = item.get("postUrl", "") or item.get("url", "") or ""
+            author = item.get("author", {}) or {}
+            author_name = author.get("name", "") or item.get("authorName", "") or ""
+            author_title = author.get("title", "") or item.get("authorTitle", "") or ""
+            author_company = author.get("companyName", "") or ""
+            
+            likes = item.get("numLikes") or item.get("likesCount") or 0
+            comments = item.get("numComments") or item.get("commentsCount") or 0
+            date_str = item.get("postedAt", "") or item.get("date", "") or ""
+            if date_str and len(date_str) > 10:
+                date_str = date_str[:10]
+                
+            posts.append({
+                "url": post_url,
+                "text": text,
+                "author": f"{author_name} ({author_title} presso {author_company})" if author_name else "Profilo LinkedIn",
+                "date": date_str,
+                "likes": likes,
+                "comments": comments,
+                "engagement": likes + comments
+            })
+        return posts
+    except Exception as e:
+        raise RuntimeError(f"Errore ricerca post per '{query}': {e}")
+
+
+def run_google_trends(terms: list, timeframe: str = "today 3-m", apify_api_key: str = None) -> list:
+    """Scrape dei trend da Google Trends per identificare argomenti e parole in forte crescita.
+    Usa l'actor apify/google-trends-scraper.
+    """
+    if not apify_api_key:
+        apify_api_key = APIFY_API_KEY
+    from apify_client import ApifyClient
+    client = ApifyClient(apify_api_key)
+    
+    run_input = {
+        "searchTerms": terms,
+        "timeRange": timeframe,
+        "geo": "IT"
+    }
+    try:
+        run = client.actor("apify/google-trends-scraper").call(run_input=run_input)
+        dataset_id = extract_dataset_id(run)
+        if not dataset_id:
+            raise ValueError("defaultDatasetId non trovato nei dettagli del run di Google Trends.")
+            
+        import time
+        items = []
+        for attempt in range(4):
+            try:
+                items = list(client.dataset(dataset_id).iterate_items())
+                break
+            except Exception as e_ds:
+                if attempt == 3:
+                    raise e_ds
+                time.sleep(1.5)
+                
+        trends = []
+        for item in items:
+            related = item.get("relatedQueries", []) or []
+            for r in related:
+                query = r.get("query", "")
+                value = r.get("value", "")
+                if query:
+                    trends.append({
+                        "Query": query,
+                        "Crescita": value
+                    })
+        return trends
+    except Exception as e:
+        raise RuntimeError(f"Errore Google Trends per '{terms}': {e}")
+
+
 # --- TABS ---
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🔍 Estrazione Lead (Scraping)",
     "🧹 Pulizia Database (Deep Cleaning)",
     "🏆 Analisi Competitor",
-    "📰 Piano Editoriale"
+    "📰 Piano Editoriale",
+    "🔍 Buyer Intelligence",
+    "📌 Action Plan & To-Do"
 ])
 
 # ----------------------------------------------------
@@ -1505,3 +1755,296 @@ with tab4:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
+        # --- NEW: SECTION FOR LINKEDIN POST SEARCH SCRAPER ---
+        st.divider()
+        st.markdown("### 🔍 Trova Post da Commentare (LinkedIn Post Search)")
+        st.markdown("Usa questa sezione per cercare discussioni attive su LinkedIn in base a keyword o hashtag per inserire i commenti di Rosario.")
+        
+        col_search1, col_search2 = st.columns([3, 1])
+        with col_search1:
+            search_query = st.text_input("🔑 Keyword o Hashtag per la ricerca (es. #GDO, private label)", value="#GDO")
+        with col_search2:
+            search_limit = st.slider("📄 Max Post", min_value=5, max_value=50, value=10, key="search_limit_slider")
+            
+        if st.button("🚀 Avvia Ricerca Post", type="primary"):
+            if not search_query.strip():
+                st.warning("Inserisci una query di ricerca.")
+            else:
+                with st.spinner(f"🔍 Ricerca in corso su LinkedIn per '{search_query}'..."):
+                    try:
+                        search_results = run_linkedin_post_search(search_query, max_posts=search_limit)
+                        if search_results:
+                            df_search = pd.DataFrame(search_results)
+                            st.success(f"Trovati {len(search_results)} post corrispondenti!")
+                            st.dataframe(df_search[["author", "date", "likes", "comments", "engagement", "text", "url"]], use_container_width=True)
+                            
+                            st.markdown("#### 🎯 Post Dettagliati e Bozza di Commento AI")
+                            for idx, post in enumerate(search_results):
+                                with st.container():
+                                    st.write(f"👤 **Autore:** {post['author']} | 📅 Data: {post['date']}")
+                                    st.write(f"📈 Likes: {post['likes']} | Commenti: {post['comments']} | Engagement: {post['engagement']}")
+                                    st.info(f"📝 **Anteprima Testo:** {post['text']}")
+                                    
+                                    lower_text = post['text'].lower()
+                                    if "private label" in lower_text or "mdd" in lower_text:
+                                        comment_idea = (
+                                            "\"Concordo in pieno. Il Private Label gourmet rappresenta oggi la vera opportunità per i retailer "
+                                            "di difendere le marginalità a scaffale ed evitare la guerra del prezzo. Dal nostro punto di vista come "
+                                            "co-produttori B2B, la sfida è offrire ricette altamente personalizzate (es. clean label o zero zuccheri) "
+                                            "garantendo affidabilità e costanza industriale nei volumi.\""
+                                        )
+                                    elif "sostenibil" in lower_text or "esg" in lower_text:
+                                        comment_idea = (
+                                            "\"Ottima riflessione. Nel food, la sostenibilità deve tradursi in scelte concrete lungo tutta la filiera: "
+                                            "dall'uso di energia 100% solare in produzione fino al recupero creativo degli scarti (Zero Waste), "
+                                            "come facciamo noi a Ribera valorizzando i gusci di pistacchio. Solo così creiamo valore reale per il consumatore.\""
+                                        )
+                                    else:
+                                        comment_idea = (
+                                            "\"Riflessione molto condivisibile. Avere il controllo totale del processo produttivo, "
+                                            "importando e tostando le materie prime intere (pistacchi, mandorle, nocciole) direttamente in stabilimento, "
+                                            "è l'unico modo per garantire ai partner della GDO la freschezza e la stabilità organolettica che meritano.\""
+                                        )
+                                        
+                                    st.markdown("💡 **Suggerimento Bozza Commento AI (copia e adatta):**")
+                                    st.code(comment_idea, language="text")
+                                    st.link_button("🔗 Apri e Commenta su LinkedIn", post['url'])
+                                    st.divider()
+                        else:
+                            st.info("Nessun post trovato per questa query. Prova ad inserire un hashtag più comune.")
+                    except Exception as e:
+                        st.error(f"Errore durante la ricerca: {e}")
+                        
+        # --- NEW: SECTION FOR GOOGLE TRENDS SCRAPER ---
+        st.divider()
+        st.markdown("### 📈 Analizzatore di Trend (Google Trends)")
+        st.markdown("Usa questa sezione per estrarre le parole e le query correlate in forte crescita su Google per avere idee fresche per i tuoi post su LinkedIn.")
+        
+        col_t1, col_t2 = st.columns([3, 1])
+        with col_t1:
+            trends_query = st.text_input("🔑 Termini da analizzare (separati da virgola, es. crema pistacchio, pistachio cream)", value="crema pistacchio")
+        with col_t2:
+            trends_time = st.selectbox("📅 Intervallo Temporale", ["today 1-m", "today 3-m", "today 12-m"], index=1)
+            
+        if st.button("🚀 Avvia Analisi Trend", type="primary"):
+            if not trends_query.strip():
+                st.warning("Inserisci almeno un termine di ricerca.")
+            else:
+                terms_list = [t.strip() for t in trends_query.split(",") if t.strip()]
+                with st.spinner(f"📈 Estrazione dati da Google Trends per {terms_list}..."):
+                    try:
+                        trends_results = run_google_trends(terms_list, timeframe=trends_time)
+                        if trends_results:
+                            st.success(f"Trovati {len(trends_results)} trend e query correlate in forte crescita!")
+                            df_trends = pd.DataFrame(trends_results)
+                            st.dataframe(df_trends, use_container_width=True, hide_index=True)
+                            
+                            st.markdown("#### 💡 Idee per Post LinkedIn basate su questi Trend")
+                            for idx, trend in enumerate(trends_results[:5]):
+                                q_val = trend['Query']
+                                c_val = trend['Crescita']
+                                st.write(f"📌 **Idea Post per '{q_val}' (Crescita: {c_val}):**")
+                                idea_text = (
+                                    f"Parlare dell'impennata di interesse verso '{q_val}' nel mercato. "
+                                    f"Spiegare come Scyavuru risponde a questo trend (es. lanciando varianti dedicate per la GDO "
+                                    f"o aumentando la capacità produttiva di questa referenza per i partner private label)."
+                                )
+                                st.info(idea_text)
+                        else:
+                            st.info("Nessuna query correlata in crescita trovata per questo periodo. Prova con termini più ampi (es. 'pistacchio').")
+                    except Exception as e:
+                        st.error(f"Errore durante l'analisi dei trend: {e}")
+
+
+# ----------------------------------------------------
+# TAB 5: BUYER INTELLIGENCE (STUDIO BUYER)
+# ----------------------------------------------------
+with tab5:
+    st.header("🔍 Buyer Intelligence — Studio Profilo & Post")
+    st.markdown(
+        "Analizza nel dettaglio un buyer specifico inserendo il link del suo profilo LinkedIn. "
+        "Questo ti permette di estrarre le sue **competenze (skills)**, gli **endorsement** e i suoi **ultimi post** "
+        "per trovare ganci di outreach personalizzati a basso costo (frazioni di centesimo)."
+    )
+
+    st.info(
+        "💡 **Come funziona:** Questo strumento effettua chiamate cookieless ad Apify ed ha un costo stimato inferiore ad un centesimo "
+        "per ogni run, evitandoti di pagare costosi abbonamenti a Sales Navigator o di rischiare ban del profilo LinkedIn."
+    )
+
+    buyer_url = st.text_input("🔗 Inserisci l'URL del profilo LinkedIn del Buyer:", placeholder="https://www.linkedin.com/in/nome-cognome-12345/")
+    
+    col_opt1, col_opt2 = st.columns(2)
+    with col_opt1:
+        scrape_details = st.checkbox("👤 Analizza Dettagli Profilo & Competenze", value=True, help="Estrae Titolo, Sommario, Esperienze e Competenze con endorsement.")
+    with col_opt2:
+        scrape_posts = st.checkbox("📝 Analizza Ultimi Post & Attività", value=True, help="Estrae gli ultimi post pubblicati dall'utente.")
+        
+    num_posts = st.slider("📄 Numero massimo di post da estrarre:", min_value=1, max_value=20, value=5)
+    
+    if st.button("🚀 Avvia Analisi Buyer", type="primary", key="btn_run_buyer_intel"):
+        if not buyer_url:
+            st.error("Per favore, inserisci un URL di profilo LinkedIn valido.")
+        elif not (scrape_details or scrape_posts):
+            st.warning("Seleziona almeno un'opzione di analisi (Profilo o Post).")
+        else:
+            with st.spinner("Estrazione dati da LinkedIn in corso..."):
+                profile_data = None
+                posts_data = None
+                
+                # Run profile details scraper
+                if scrape_details:
+                    try:
+                        profile_data = run_profile_details(buyer_url)
+                    except Exception as e:
+                        st.error(f"Errore durante l'estrazione del profilo: {e}")
+                        
+                # Run profile posts scraper
+                if scrape_posts:
+                    try:
+                        posts_data = run_profile_posts(buyer_url, max_items=num_posts)
+                    except Exception as e:
+                        st.error(f"Errore durante l'estrazione dei post: {e}")
+                
+                # Display Results
+                st.success("Analisi completata con successo!")
+                
+                if profile_data:
+                    st.markdown(f"## 👤 {profile_data['name']}")
+                    st.markdown(f"**Qualifica:** {profile_data['headline']}")
+                    
+                    if profile_data['about']:
+                        with st.expander("📝 Informazioni / About", expanded=True):
+                            st.write(profile_data['about'])
+                            
+                    if profile_data['skills']:
+                        with st.expander("🏆 Competenze & Endorsement", expanded=True):
+                            df_skills = pd.DataFrame(profile_data['skills'])
+                            if not df_skills.empty:
+                                df_skills.columns = ["Competenza", "Numero di Endorsement"]
+                                st.dataframe(df_skills, use_container_width=True)
+                            else:
+                                st.write("Nessuna competenza pubblica trovata.")
+                            
+                    if profile_data['experiences']:
+                        with st.expander("💼 Esperienza Professionale", expanded=True):
+                            for exp in profile_data['experiences']:
+                                st.markdown(f"**{exp['title']}** presso *{exp['company']}*")
+                                if exp['duration']:
+                                    st.caption(f"🗓️ Durata: {exp['duration']}")
+                                if exp['description']:
+                                    st.write(exp['description'])
+                                st.divider()
+                                
+                if posts_data:
+                    st.markdown("## 📝 Ultimi Post Pubblicati")
+                    for idx, post in enumerate(posts_data):
+                        with st.container():
+                            st.markdown(f"### Post #{idx+1} — {post['date'] or 'Data non disponibile'}")
+                            st.markdown(f"**Reazioni:** {post['likes']} | **Commenti:** {post['comments']} | **Condivisioni:** {post['shares']} | **Engagement:** {post['engagement']}")
+                            
+                            st.info(post['text'] if post['text'].strip() else "*Nessun testo nel post (es. solo immagine o condivisione)*")
+                            
+                            # Generatore Outreach Icebreaker dinamico
+                            if post['text'].strip():
+                                clean_text = post['text'].replace('\n', ' ').strip()
+                                snippet = clean_text[:70] + "..." if len(clean_text) > 70 else clean_text
+                                
+                                # Personalizzazione per parole chiave
+                                lower_text = clean_text.lower()
+                                if "private label" in lower_text or "mdd" in lower_text or "marchio del distributore" in lower_text:
+                                    icebreaker = (
+                                        f"\"Ciao [Nome Buyer],\n\n"
+                                        f"Ho letto con molto interesse il tuo post in cui parlavi di '{snippet}'.\n\n"
+                                        f"In Scyavuru affianchiamo la GDO internazionale nello sviluppo di progetti Private Label "
+                                        f"premium (creme spalmabili e confetture siciliane). Sarei felice di scambiare due chiacchiere "
+                                        f"su come aiutiamo i partner a valorizzare lo scaffale MDD.\n\n"
+                                        f"Un cordiale saluto,\n"
+                                        f"Rosario Tortorici (CEO @ Scyavuru)\""
+                                    )
+                                elif "pistacchio" in lower_text or "pistachio" in lower_text or "spalmabile" in lower_text or "crema" in lower_text:
+                                    icebreaker = (
+                                        f"\"Ciao [Nome Buyer],\n\n"
+                                        f"Ho visto il tuo post su '{snippet}'. Come produttori di creme spalmabili "
+                                        f"e preparati al Pistacchio di Sicilia, seguiamo con attenzione l'evoluzione di questa categoria.\n\n"
+                                        f"Sarei lieto di connettermi per condividere la nostra esperienza e magari inviarti una campionatura "
+                                        f"delle nostre ultime novità B2B.\n\n"
+                                        f"A presto,\n"
+                                        f"Rosario Tortorici (CEO @ Scyavuru)\""
+                                    )
+                                else:
+                                    icebreaker = (
+                                        f"\"Ciao [Nome Buyer],\n\n"
+                                        f"Mi ha molto colpito la tua riflessione condivisa su LinkedIn riguardo a '{snippet}'.\n\n"
+                                        f"Condivido in pieno il punto di vista. Mi farebbe molto piacere aggiungerti ai miei contatti professionali "
+                                        f"per rimanere aggiornato sui tuoi spunti sul mondo Retail e GDO.\n\n"
+                                        f"Un cordiale saluto,\n"
+                                        f"Rosario Tortorici (CEO @ Scyavuru)\""
+                                    )
+                                st.markdown("💡 **Idea per Outreach Icebreaker (copia e invia su LinkedIn):**")
+                                st.code(icebreaker, language="text")
+                                
+                            if post['url']:
+                                st.link_button("🔗 Apri post su LinkedIn", post['url'])
+                            st.divider()
+                elif scrape_posts:
+                    st.warning("Nessun post pubblico recente trovato per questo profilo.")
+
+
+# ----------------------------------------------------
+# TAB 6: ACTION PLAN & TO-DO
+# ----------------------------------------------------
+with tab6:
+    st.header("📌 Action Plan & To-Do (Riunione Ferdinando)")
+    st.markdown("Questa sezione è uno strumento persistente per tenere traccia delle priorità operative decise nelle call strategiche. I progressi vengono salvati in automatico.")
+    
+    import json
+    import os
+
+    TODO_FILE = "todo_scyavuru.json"
+    
+    default_tasks = {
+        "1. Sincronizzare rubrica di Rosario tramite l'App Mobile LinkedIn (escludendo contatti non pertinenti)": False,
+        "2. Rivedere i testi della pagina Company (NON aspettare i vettoriali)": False,
+        "3. Raccogliere fisicamente le Segnalazioni scritte dagli amici/partner e farle pubblicare": False,
+        "4. Iniziare a scrivere i testi descrittivi per i nuovi Cataloghi (partendo dal file Excel)": False,
+        "5. Creazione annuncio 'Job Posting' mirato (es. Export Manager GDO) per raccogliere lead": False,
+        "6. Avviare commenti tattici e Repost 'Con Pensiero' sui profili dei partner": False,
+        "7. Attivazione Demo Sales Navigator (SOLO quando i cataloghi sono pronti)": False,
+        "8. Inizio pubblicazione Post ufficiali di Rosario (SOLO dopo aver raggiunto 150-200 contatti)": False
+    }
+
+    if not os.path.exists(TODO_FILE):
+        with open(TODO_FILE, "w", encoding="utf-8") as f:
+            json.dump(default_tasks, f)
+            
+    with open(TODO_FILE, "r", encoding="utf-8") as f:
+        tasks = json.load(f)
+        
+    # Check if there are new default tasks not present in the saved JSON and add them
+    for task_name in default_tasks:
+        if task_name not in tasks:
+            tasks[task_name] = False
+            
+    # Risorse utili
+    st.subheader("📎 Risorse Rapide")
+    st.link_button("📊 Apri Catalogo Excel (Google Sheets)", "https://docs.google.com/spreadsheets/d/1PTbnw1Y1Eo5TmbhQWIohVxjCVzCDUftfwX0EhDhjUo8/edit?usp=sharing")
+    st.divider()
+
+    st.subheader("✅ Task List Operativa")
+    
+    updated_tasks = {}
+
+    for task_name, state in tasks.items():
+        updated_tasks[task_name] = st.checkbox(task_name, value=state, key=f"task_{task_name}")
+        
+    if updated_tasks != tasks:
+        with open(TODO_FILE, "w", encoding="utf-8") as f:
+            json.dump(updated_tasks, f)
+        
+    completed = sum(1 for v in updated_tasks.values() if v)
+    total = len(updated_tasks)
+    progress = completed / total if total > 0 else 0
+    st.progress(progress, text=f"Progresso: {completed} su {total} task completati")
+

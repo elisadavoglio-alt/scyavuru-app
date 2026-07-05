@@ -2267,26 +2267,16 @@ with tab6:
         t_name = item["name"]
         t_completed = item.get("completed", False)
         
-        c_check, c_up, c_down, c_name, c_del = st.columns([1, 0.7, 0.7, 5, 1])
+        c_check, c_name, c_up, c_down, c_del = st.columns([0.6, 5, 0.6, 0.6, 0.6])
+        
+        # Genera un hash deterministico per i widget
+        import hashlib
+        task_hash = hashlib.md5(t_name.encode('utf-8')).hexdigest()[:10]
         
         # Checkbox per completato
-        checked = c_check.checkbox("", value=t_completed, key=f"chk_scy_{hash(t_name)}")
+        checked = c_check.checkbox("", value=t_completed, key=f"chk_scy_{task_hash}")
         if checked != t_completed:
             tasks[idx]["completed"] = checked
-            with open(TODO_FILE, "w", encoding="utf-8") as f:
-                json.dump(tasks, f)
-            st.rerun()
-            
-        # Up button (▲)
-        if c_up.button("▲", key=f"up_scy_{idx}", disabled=(idx == 0)):
-            tasks[idx], tasks[idx-1] = tasks[idx-1], tasks[idx]
-            with open(TODO_FILE, "w", encoding="utf-8") as f:
-                json.dump(tasks, f)
-            st.rerun()
-            
-        # Down button (▼)
-        if c_down.button("▼", key=f"down_scy_{idx}", disabled=(idx == len(tasks) - 1)):
-            tasks[idx], tasks[idx+1] = tasks[idx+1], tasks[idx]
             with open(TODO_FILE, "w", encoding="utf-8") as f:
                 json.dump(tasks, f)
             st.rerun()
@@ -2295,9 +2285,21 @@ with tab6:
         text_style = f"~~{t_name}~~" if checked else f"**{t_name}**"
         c_name.markdown(f"<div style='padding-top: 5px;'>{text_style}</div>", unsafe_allow_html=True)
         
+        # Up button (▲)
+        if c_up.button("▲", key=f"up_scy_{task_hash}", disabled=(idx == 0)):
+            tasks[idx], tasks[idx-1] = tasks[idx-1], tasks[idx]
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
+            st.rerun()
+            
+        # Down button (▼)
+        if c_down.button("▼", key=f"down_scy_{task_hash}", disabled=(idx == len(tasks) - 1)):
+            tasks[idx], tasks[idx+1] = tasks[idx+1], tasks[idx]
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
+            st.rerun()
+            
         # Pulsante di eliminazione
-        import hashlib
-        task_hash = hashlib.md5(t_name.encode('utf-8')).hexdigest()[:10]
         if c_del.button("🗑️", key=f"del_scy_{task_hash}"):
             tasks.pop(idx)
             with open(TODO_FILE, "w", encoding="utf-8") as f:

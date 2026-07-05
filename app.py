@@ -2217,17 +2217,6 @@ with tab6:
         with open(TODO_FILE, "w", encoding="utf-8") as f:
             json.dump(tasks, f)
             
-    # Controlla se mancano le task di default e aggiungile
-    for idx, (def_name, def_state) in enumerate(default_tasks.items(), 1):
-        if not any(t["name"] == def_name for t in tasks):
-            tasks.append({
-                "name": def_name,
-                "completed": def_state,
-                "priority": idx
-            })
-            with open(TODO_FILE, "w", encoding="utf-8") as f:
-                json.dump(tasks, f)
-            
     # Risorse utili
     st.subheader("📎 Risorse Rapide")
     st.link_button("📊 Apri Catalogo Excel (Google Sheets)", "https://docs.google.com/spreadsheets/d/1PTbnw1Y1Eo5TmbhQWIohVxjCVzCDUftfwX0EhDhjUo8/edit?usp=sharing")

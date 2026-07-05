@@ -2076,15 +2076,42 @@ with tab6:
 
     st.subheader("✅ Task List Operativa")
     
+    # Form per aggiungere nuove task
+    with st.form("add_new_task_scyavuru", clear_on_submit=True):
+        col_a1, col_a2 = st.columns([4, 1])
+        new_task_text = col_a1.text_input("📝 Aggiungi una nuova priorità / task:")
+        submit_add = col_a2.form_submit_button("Aggiungi")
+        if submit_add and new_task_text.strip():
+            tasks[new_task_text.strip()] = False
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
+            st.rerun()
+            
+    st.write("") # spacing
+    
+    # Render delle task con checkbox e pulsante di eliminazione
     updated_tasks = {}
-
-    for task_name, state in tasks.items():
-        updated_tasks[task_name] = st.checkbox(task_name, value=state, key=f"task_{task_name}")
+    for task_name, state in list(tasks.items()):
+        col_t1, col_t2 = st.columns([7, 1])
+        checked = col_t1.checkbox(task_name, value=state, key=f"check_scy_{task_name}")
+        if checked != state:
+            tasks[task_name] = checked
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
+            st.rerun()
+            
+        import hashlib
+        task_hash = hashlib.md5(task_name.encode('utf-8')).hexdigest()[:10]
+        if col_t2.button("🗑️", key=f"del_scy_{task_hash}"):
+            if task_name in tasks:
+                del tasks[task_name]
+                with open(TODO_FILE, "w", encoding="utf-8") as f:
+                    json.dump(tasks, f)
+                st.rerun()
+                
+        updated_tasks[task_name] = checked
         
-    if updated_tasks != tasks:
-        with open(TODO_FILE, "w", encoding="utf-8") as f:
-            json.dump(updated_tasks, f)
-        
+    st.divider()
     completed = sum(1 for v in updated_tasks.values() if v)
     total = len(updated_tasks)
     progress = completed / total if total > 0 else 0

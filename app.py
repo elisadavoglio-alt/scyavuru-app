@@ -2191,16 +2191,42 @@ with tab6:
     }
 
     if not os.path.exists(TODO_FILE):
+        default_list = []
+        for idx, (t_name, t_state) in enumerate(default_tasks.items(), 1):
+            default_list.append({
+                "name": t_name,
+                "completed": t_state,
+                "priority": idx
+            })
         with open(TODO_FILE, "w", encoding="utf-8") as f:
-            json.dump(default_tasks, f)
+            json.dump(default_list, f)
             
     with open(TODO_FILE, "r", encoding="utf-8") as f:
         tasks = json.load(f)
         
-    # Check if there are new default tasks not present in the saved JSON and add them
-    for task_name in default_tasks:
-        if task_name not in tasks:
-            tasks[task_name] = False
+    # Migrazione al volo se il file è salvato come dict
+    if isinstance(tasks, dict):
+        new_list = []
+        for idx, (t_name, t_state) in enumerate(tasks.items(), 1):
+            new_list.append({
+                "name": t_name,
+                "completed": t_state,
+                "priority": idx
+            })
+        tasks = new_list
+        with open(TODO_FILE, "w", encoding="utf-8") as f:
+            json.dump(tasks, f)
+            
+    # Controlla se mancano le task di default e aggiungile
+    for idx, (def_name, def_state) in enumerate(default_tasks.items(), 1):
+        if not any(t["name"] == def_name for t in tasks):
+            tasks.append({
+                "name": def_name,
+                "completed": def_state,
+                "priority": idx
+            })
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
             
     # Risorse utili
     st.subheader("📎 Risorse Rapide")
@@ -2209,44 +2235,78 @@ with tab6:
 
     st.subheader("✅ Task List Operativa")
     
-    # Form per aggiungere nuove task
+    # Form per aggiungere nuove task con priorità
     with st.form("add_new_task_scyavuru", clear_on_submit=True):
-        col_a1, col_a2 = st.columns([4, 1])
+        col_a1, col_a2, col_a3 = st.columns([3, 1, 1])
         new_task_text = col_a1.text_input("📝 Aggiungi una nuova priorità / task:")
-        submit_add = col_a2.form_submit_button("Aggiungi")
+        
+        # Proponi come priorità il valore successivo al massimo attuale
+        max_prio = max([t.get("priority", 0) for t in tasks]) if tasks else 0
+        new_task_priority = col_a2.number_input("Priorità:", min_value=1, value=max_prio + 1, step=1)
+        
+        submit_add = col_a3.form_submit_button("Aggiungi")
         if submit_add and new_task_text.strip():
-            tasks[new_task_text.strip()] = False
-            with open(TODO_FILE, "w", encoding="utf-8") as f:
-                json.dump(tasks, f)
-            st.rerun()
-            
-    st.write("") # spacing
-    
-    # Render delle task con checkbox e pulsante di eliminazione
-    updated_tasks = {}
-    for task_name, state in list(tasks.items()):
-        col_t1, col_t2 = st.columns([7, 1])
-        checked = col_t1.checkbox(task_name, value=state, key=f"check_scy_{task_name}")
-        if checked != state:
-            tasks[task_name] = checked
-            with open(TODO_FILE, "w", encoding="utf-8") as f:
-                json.dump(tasks, f)
-            st.rerun()
-            
-        import hashlib
-        task_hash = hashlib.md5(task_name.encode('utf-8')).hexdigest()[:10]
-        if col_t2.button("🗑️", key=f"del_scy_{task_hash}"):
-            if task_name in tasks:
-                del tasks[task_name]
+            if not any(t["name"] == new_task_text.strip() for t in tasks):
+                tasks.append({
+                    "name": new_task_text.strip(),
+                    "completed": False,
+                    "priority": int(new_task_priority)
+                })
                 with open(TODO_FILE, "w", encoding="utf-8") as f:
                     json.dump(tasks, f)
                 st.rerun()
-                
-        updated_tasks[task_name] = checked
+            
+    st.write("") # spacing
+    
+    # Ordina le task per priorità ascendente
+    tasks_sorted = sorted(tasks, key=lambda x: x.get("priority", 999))
+    
+    updated_tasks_list = []
+    for item in tasks_sorted:
+        t_name = item["name"]
+        t_completed = item.get("completed", False)
+        t_priority = item.get("priority", 1)
+        
+        c_check, c_prio, c_name, c_del = st.columns([1, 1.2, 5, 1])
+        
+        # Checkbox per completato
+        checked = c_check.checkbox("", value=t_completed, key=f"chk_scy_{hash(t_name)}")
+        if checked != t_completed:
+            for t in tasks:
+                if t["name"] == t_name:
+                    t["completed"] = checked
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
+            st.rerun()
+            
+        # Input numerico per priorità temporale
+        new_p = c_prio.number_input("Ord.", min_value=1, value=t_priority, step=1, key=f"prio_scy_{hash(t_name)}", label_visibility="collapsed")
+        if new_p != t_priority:
+            for t in tasks:
+                if t["name"] == t_name:
+                    t["priority"] = int(new_p)
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
+            st.rerun()
+            
+        # Testo della task
+        text_style = f"~~{t_name}~~" if checked else f"**{t_name}**"
+        c_name.markdown(f"<div style='padding-top: 5px;'>{text_style}</div>", unsafe_allow_html=True)
+        
+        # Pulsante di eliminazione
+        import hashlib
+        task_hash = hashlib.md5(t_name.encode('utf-8')).hexdigest()[:10]
+        if c_del.button("🗑️", key=f"del_scy_{task_hash}"):
+            tasks = [t for t in tasks if t["name"] != t_name]
+            with open(TODO_FILE, "w", encoding="utf-8") as f:
+                json.dump(tasks, f)
+            st.rerun()
+            
+        updated_tasks_list.append(checked)
         
     st.divider()
-    completed = sum(1 for v in updated_tasks.values() if v)
-    total = len(updated_tasks)
+    completed = sum(1 for v in updated_tasks_list if v)
+    total = len(updated_tasks_list)
     progress = completed / total if total > 0 else 0
     st.progress(progress, text=f"Progresso: {completed} su {total} task completati")
 

@@ -2262,12 +2262,16 @@ with tab6:
         with open(TODO_FILE, "w", encoding="utf-8") as f:
             json.dump(tasks, f)
             
+    # Inizializza stato modifica task se non presente
+    if "edit_task_idx" not in st.session_state:
+        st.session_state["edit_task_idx"] = -1
+        
     updated_tasks_list = []
     for idx, item in enumerate(tasks):
         t_name = item["name"]
         t_completed = item.get("completed", False)
         
-        c_check, c_name, c_up, c_down, c_del = st.columns([0.6, 5, 0.6, 0.6, 0.6])
+        c_check, c_name, c_up, c_down, c_edit, c_del = st.columns([0.6, 5, 0.6, 0.6, 0.6, 0.6])
         
         # Genera un hash deterministico per i widget
         import hashlib
@@ -2281,9 +2285,22 @@ with tab6:
                 json.dump(tasks, f)
             st.rerun()
             
-        # Testo della task
-        text_style = f"~~{t_name}~~" if checked else f"**{t_name}**"
-        c_name.markdown(f"<div style='padding-top: 5px;'>{text_style}</div>", unsafe_allow_html=True)
+        # Nome della task (o input se in modalità modifica)
+        if st.session_state["edit_task_idx"] == idx:
+            new_name = c_name.text_input("Modifica task:", value=t_name, key=f"input_edit_scy_{task_hash}", label_visibility="collapsed")
+            if c_edit.button("💾", key=f"save_scy_{task_hash}"):
+                if new_name.strip():
+                    tasks[idx]["name"] = new_name.strip()
+                    st.session_state["edit_task_idx"] = -1
+                    with open(TODO_FILE, "w", encoding="utf-8") as f:
+                        json.dump(tasks, f)
+                    st.rerun()
+        else:
+            text_style = f"~~{t_name}~~" if checked else f"**{t_name}**"
+            c_name.markdown(f"<div style='padding-top: 5px;'>{text_style}</div>", unsafe_allow_html=True)
+            if c_edit.button("✏️", key=f"edit_scy_{task_hash}"):
+                st.session_state["edit_task_idx"] = idx
+                st.rerun()
         
         # Up button (▲)
         if c_up.button("▲", key=f"up_scy_{task_hash}", disabled=(idx == 0)):
@@ -2302,6 +2319,9 @@ with tab6:
         # Pulsante di eliminazione
         if c_del.button("🗑️", key=f"del_scy_{task_hash}"):
             tasks.pop(idx)
+            # Reset stato modifica se eliminiamo quella corrente
+            if st.session_state["edit_task_idx"] == idx:
+                st.session_state["edit_task_idx"] = -1
             with open(TODO_FILE, "w", encoding="utf-8") as f:
                 json.dump(tasks, f)
             st.rerun()

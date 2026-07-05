@@ -844,13 +844,48 @@ def run_google_trends(terms: list, timeframe: str = "today 3-m", apify_api_key: 
         raise RuntimeError(f"Errore Google Trends per '{terms}': {e}")
 
 
+def auto_save_scraping(df, query):
+    import os
+    from datetime import datetime
+    
+    # Sanitizza query per il nome file
+    clean_query = "".join([c if c.isalnum() else "_" for c in query])
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"Scyavuru_Scraping_{clean_query}_{timestamp}.xlsx"
+    
+    # Prova a salvare sul Desktop locale di Elisa
+    desktop_path = "/Users/elisadavoglio/Desktop"
+    if os.path.exists(desktop_path):
+        # Crea cartella Scyavuru_Scraping_Exports sul Desktop se non esiste
+        export_dir = os.path.join(desktop_path, "Scyavuru_Scraping_Exports")
+        if not os.path.exists(export_dir):
+            os.makedirs(export_dir)
+        full_path = os.path.join(export_dir, filename)
+        try:
+            df.to_excel(full_path, index=False)
+            return f"💾 **Salvato in automatico sul Desktop:** [Scyavuru_Scraping_Exports/{filename}](file://{full_path})"
+        except Exception as e:
+            return f"⚠️ Errore salvataggio automatico locale: {e}"
+    else:
+        # Salva nella cartella locale del server Streamlit Cloud
+        server_dir = "data/exports"
+        if not os.path.exists(server_dir):
+            os.makedirs(server_dir)
+        full_path = os.path.join(server_dir, filename)
+        try:
+            df.to_excel(full_path, index=False)
+            return f"💾 **Salvato in automatico nell'archivio del server:** `{server_dir}/{filename}`"
+        except Exception as e:
+            return f"⚠️ Errore salvataggio automatico server: {e}"
+
+
 # --- TABS ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🔍 Estrazione Lead (Scraping)",
     "🧹 Pulizia Database (Deep Cleaning)",
     "🏆 Analisi Competitor",
     "📰 Piano Editoriale",
-    "🔍 Buyer Intelligence",
+    "📈 Google & LinkedIn Trends",
     "📌 Action Plan & To-Do"
 ])
 
@@ -861,10 +896,46 @@ with tab1:
     st.header("Estrazione Autonoma da LinkedIn (via Apify)")
     st.markdown("Usa questo strumento per cercare nuovi contatti. Inserisci la qualifica, il paese e l'API Key.")
 
+    # --- PALETTE DI PAROLE CHIAVE CONSIGLIATE ---
+    st.markdown("### 💡 Parole Chiave Consigliate (Clicca per selezionare)")
+    
+    # Inizializza session_state per parola chiave
+    if "selected_keyword" not in st.session_state:
+        st.session_state["selected_keyword"] = "Buyer Food"
+        
+    with st.expander("🌍 Mercato Internazionale (GDO / Export)", expanded=False):
+        int_keywords = [
+            "Buyer Sweet Grocery", "Category Manager Sweet Grocery", "Buyer Confectionery & Breakfast",
+            "Buyer Confectionery", "Buyer Biscuits & Spreads", "Ambient Grocery Buyer",
+            "International Buyer Grocery", "Global Sourcing Manager Confectionery", "Import Manager Food",
+            "Category Manager Spreads & Jams", "Gourmet Food Buyer", "Fine Food Buyer",
+            "Confectionery Category Manager"
+        ]
+        cols_int = st.columns(3)
+        for idx, kw in enumerate(int_keywords):
+            if cols_int[idx % 3].button(kw, key=f"kw_int_btn_{idx}"):
+                st.session_state["selected_keyword"] = kw
+                st.rerun()
+                
+    with st.expander("🇮🇹 Mercato Italiano (GDO / DO / Centrali d'acquisto)", expanded=False):
+        it_keywords = [
+            "Buyer Food", "Category Manager Food", "Responsabile Acquisti Alimentari Confezionati",
+            "Buyer Alimentari Confezionati", "Category Manager Drogheria Alimentare", "Buyer Generi Vari",
+            "Buyer Dolciario", "Category Manager Dolciario", "Responsabile Acquisti Drogheria",
+            "Buyer Specialità Alimentari", "HoReCa Purchasing Manager", "Responsabile Acquisti HoReCa"
+        ]
+        cols_it = st.columns(3)
+        for idx, kw in enumerate(it_keywords):
+            if cols_it[idx % 3].button(kw, key=f"kw_it_btn_{idx}"):
+                st.session_state["selected_keyword"] = kw
+                st.rerun()
+                
+    st.markdown("---")
+    
     # --- SEZIONE PARAMETRI BASE ---
     col_a, col_b = st.columns([3, 1])
     with col_a:
-        ruolo_input = st.text_input("🎯 Qualifica da cercare (es. Buyer Food, Category Manager)", value="Buyer Food")
+        ruolo_input = st.text_input("🎯 Qualifica da cercare (es. Buyer Food, Category Manager)", value=st.session_state["selected_keyword"])
         azienda_input = st.text_input("🏢 Azienda Specifica (Opzionale)", value="")
         location_input = st.text_input("📍 Nazione / Città (es. Italy, Milan)", value="Italy")
     with col_b:
@@ -951,6 +1022,10 @@ with tab1:
                         file_name=f"Estrazione_{ruolo_input.replace(' ', '_')}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
+                    
+                    # Salvataggio automatico locale o server
+                    save_msg = auto_save_scraping(df_filtrato, ruolo_input)
+                    st.markdown(save_msg, unsafe_allow_html=True)
                 else:
                     st.info("Nessun profilo trovato con questi criteri.")
             except Exception as e:

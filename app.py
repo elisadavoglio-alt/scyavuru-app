@@ -899,20 +899,19 @@ with tab1:
     # --- PALETTE DI PAROLE CHIAVE CONSIGLIATE (DINAMICA) ---
     st.markdown("### 💡 Parole Chiave Consigliate (Clicca per selezionare)")
     
-    KEYWORDS_FILE = "keywords_scyavuru.json"
+    KEYWORDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "keywords_scyavuru.json")
     default_keywords = {
         "internazionale": [
-            "Buyer Sweet Grocery", "Category Manager Sweet Grocery", "Buyer Confectionery & Breakfast",
-            "Buyer Confectionery", "Buyer Biscuits & Spreads", "Ambient Grocery Buyer",
-            "International Buyer Grocery", "Global Sourcing Manager Confectionery", "Import Manager Food",
-            "Category Manager Spreads & Jams", "Gourmet Food Buyer", "Fine Food Buyer",
-            "Confectionery Category Manager"
+            "Food Buyer", "Category Manager Grocery", "Specialty Food Buyer",
+            "Gourmet Food Buyer", "Import Manager Food", "Grocery Buyer",
+            "Purchasing Manager Food", "Buyer Confectionery", "Private Label Category Manager",
+            "Sourcing Manager Food", "International Buyer Grocery", "Fine Food Buyer"
         ],
         "italiano": [
-            "Buyer Food", "Category Manager Food", "Responsabile Acquisti Alimentari Confezionati",
-            "Buyer Alimentari Confezionati", "Category Manager Drogheria Alimentare", "Buyer Generi Vari",
-            "Buyer Dolciario", "Category Manager Dolciario", "Responsabile Acquisti Drogheria",
-            "Buyer Specialità Alimentari", "HoReCa Purchasing Manager", "Responsabile Acquisti HoReCa"
+            "Buyer Food", "Category Manager Food", "Responsabile Acquisti Alimentari",
+            "Buyer Drogheria", "Buyer Dolciario", "Category Manager Dolciario",
+            "Responsabile Acquisti GDO", "Buyer Specialità Alimentari", "Purchasing Manager Food",
+            "Responsabile Acquisti HoReCa"
         ]
     }
     
@@ -920,7 +919,7 @@ with tab1:
     import os
     if not os.path.exists(KEYWORDS_FILE):
         with open(KEYWORDS_FILE, "w", encoding="utf-8") as f:
-            json.dump(default_keywords, f)
+            json.dump(default_keywords, f, indent=4)
             
     with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
         kw_data = json.load(f)
@@ -963,7 +962,7 @@ with tab1:
                 if new_k_text.strip() not in kw_data[cat_key]:
                     kw_data[cat_key].append(new_k_text.strip())
                     with open(KEYWORDS_FILE, "w", encoding="utf-8") as f:
-                        json.dump(kw_data, f)
+                        json.dump(kw_data, f, indent=4)
                     st.success(f"Aggiunta con successo: {new_k_text.strip()}")
                     st.rerun()
                     
@@ -984,18 +983,66 @@ with tab1:
                     kw_data["italiano"].remove(clean_kw)
                     
                 with open(KEYWORDS_FILE, "w", encoding="utf-8") as f:
-                    json.dump(kw_data, f)
+                    json.dump(kw_data, f, indent=4)
                 st.success(f"Rimossa con successo: {clean_kw}")
                 st.rerun()
                 
+    # Inizializza session_state per azienda selezionata
+    if "selected_company" not in st.session_state:
+        st.session_state["selected_company"] = ""
+        
+    st.markdown("### 🏢 Catene & Importatori Consigliati (Clicca per selezionare l'Azienda)")
+    
+    with st.expander("🌟 USA — Catene Gourmet & Specialty (Whole Foods, Trader Joe's, Eataly...)", expanded=False):
+        usa_gourmet = [
+            "Whole Foods Market", "Trader Joe's", "Eataly USA", "Wegmans",
+            "The Fresh Market", "Sprouts Farmers Market", "Central Market", "Bristol Farms"
+        ]
+        cols_ug = st.columns(3)
+        for idx, co in enumerate(usa_gourmet):
+            if cols_ug[idx % 3].button(co, key=f"btn_co_ug_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "United States"
+                st.rerun()
+
+    with st.expander("🏬 USA — Giganti GDO & Supermercati (Kroger, Publix, Albertsons...)", expanded=False):
+        usa_gdo = ["Kroger", "Albertsons", "Publix", "H-E-B", "Stop & Shop", "Target"]
+        cols_ugd = st.columns(3)
+        for idx, co in enumerate(usa_gdo):
+            if cols_ugd[idx % 3].button(co, key=f"btn_co_ugd_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "United States"
+                st.rerun()
+
+    with st.expander("🚢 USA — Importatori & Distributori B2B (Atalanta, KeHE, UNFI...)", expanded=False):
+        usa_imp = ["Atalanta Corporation", "KeHE Distributors", "UNFI", "Manicaretti Italian Food Importers"]
+        cols_uimp = st.columns(2)
+        for idx, co in enumerate(usa_imp):
+            if cols_uimp[idx % 2].button(co, key=f"btn_co_uimp_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "United States"
+                st.rerun()
+
+    with st.expander("🇮🇹 ITALIA — Supermercati & GDO (Esselunga, Coop, Conad...)", expanded=False):
+        it_gdo = ["Esselunga", "Coop Italia", "Conad", "Carrefour Italia", "Selex", "Pam Panorama", "Eurospin"]
+        cols_itg = st.columns(3)
+        for idx, co in enumerate(it_gdo):
+            if cols_itg[idx % 3].button(co, key=f"btn_co_itg_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "Italy"
+                st.rerun()
+
     st.markdown("---")
     
     # --- SEZIONE PARAMETRI BASE ---
+    if "location_input_val" not in st.session_state:
+        st.session_state["location_input_val"] = "Italy"
+        
     col_a, col_b = st.columns([3, 1])
     with col_a:
         ruolo_input = st.text_input("🎯 Qualifica da cercare (es. Buyer Food, Category Manager)", value=st.session_state["selected_keyword"])
-        azienda_input = st.text_input("🏢 Azienda Specifica (Opzionale)", value="")
-        location_input = st.text_input("📍 Nazione / Città (es. Italy, Milan)", value="Italy")
+        azienda_input = st.text_input("🏢 Azienda Specifica (Opzionale - Clicca un bottone sopra o scrivi)", value=st.session_state.get("selected_company", ""))
+        location_input = st.text_input("📍 Nazione / Città (es. United States, Italy)", value=st.session_state.get("location_input_val", "Italy"))
     with col_b:
         max_profili_input = st.number_input("# Profili", min_value=1, max_value=1000, value=20)
 
@@ -2174,13 +2221,30 @@ with tab5:
         st.markdown("### 🤝 Monitoraggio Pagine GDO & Profili Target")
         st.markdown("Monitora le pagine aziendali ufficiali delle insegne retail partner o i profili personali di buyer specifici. Estrai i loro ultimi post per commentare o fare repost al volo con bozze scritte dall'IA.")
         
-        PARTNERS_FILE = "partners_gdo_scyavuru.json"
         default_partners = [
-            {"nome": "Coop Italia", "slug": "coop-italia", "tipo": "pagina"},
-            {"nome": "Conad", "slug": "conad", "tipo": "pagina"},
-            {"nome": "Esselunga", "slug": "esselunga", "tipo": "pagina"},
-            {"nome": "Carrefour Italia", "slug": "carrefour-italia", "tipo": "pagina"},
-            {"nome": "MD S.p.A.", "slug": "md-s-p-a-", "tipo": "pagina"}
+            {"nome": "Coop Italia (Italia)", "slug": "coop-italia", "tipo": "pagina", "paese": "Italia"},
+            {"nome": "Conad (Italia)", "slug": "conad", "tipo": "pagina", "paese": "Italia"},
+            {"nome": "Esselunga (Italia)", "slug": "esselunga", "tipo": "pagina", "paese": "Italia"},
+            {"nome": "Carrefour Italia (Italia)", "slug": "carrefour-italia", "tipo": "pagina", "paese": "Italia"},
+            {"nome": "MD S.p.A. (Italia)", "slug": "md-s-p-a-", "tipo": "pagina", "paese": "Italia"},
+            {"nome": "Whole Foods Market (USA)", "slug": "whole-foods-market", "tipo": "pagina", "paese": "Stati Uniti"},
+            {"nome": "Trader Joe's (USA)", "slug": "trader-joe's", "tipo": "pagina", "paese": "Stati Uniti"},
+            {"nome": "Eataly USA (USA)", "slug": "eataly", "tipo": "pagina", "paese": "Stati Uniti"},
+            {"nome": "Spinneys (EAU / Dubai)", "slug": "spinneys", "tipo": "pagina", "paese": "Emirati Arabi Uniti"},
+            {"nome": "Waitrose UAE (EAU / Dubai)", "slug": "waitrose-uae", "tipo": "pagina", "paese": "Emirati Arabi Uniti"},
+            {"nome": "Waitrose & Partners (UK)", "slug": "waitrose", "tipo": "pagina", "paese": "Regno Unito"},
+            {"nome": "Marks & Spencer Food (UK)", "slug": "marks-and-spencer", "tipo": "pagina", "paese": "Regno Unito"},
+            {"nome": "Edeka (Germania)", "slug": "edeka", "tipo": "pagina", "paese": "Germania"},
+            {"nome": "Rewe Group (Germania)", "slug": "rewe-group", "tipo": "pagina", "paese": "Germania"},
+            {"nome": "La Grande Épicerie de Paris (Francia)", "slug": "la-grande-epicerie-de-paris", "tipo": "pagina", "paese": "Francia"},
+            {"nome": "Monoprix (Francia)", "slug": "monoprix", "tipo": "pagina", "paese": "Francia"},
+            {"nome": "Globus Delicatessa (Svizzera)", "slug": "magazine-zum-globus", "tipo": "pagina", "paese": "Svizzera"},
+            {"nome": "Manor Food (Svizzera)", "slug": "manor-ag", "tipo": "pagina", "paese": "Svizzera"},
+            {"nome": "Seijo Ishii (Giappone)", "slug": "seijo-ishii", "tipo": "pagina", "paese": "Giappone"},
+            {"nome": "Danube Supermarket (Arabia Saudita)", "slug": "danube-co", "tipo": "pagina", "paese": "Arabia Saudita"},
+            {"nome": "Albert Heijn (Paesi Bassi)", "slug": "albert-heijn", "tipo": "pagina", "paese": "Paesi Bassi"},
+            {"nome": "Rob The Gourmet Market (Belgio)", "slug": "rob-the-gourmet-market", "tipo": "pagina", "paese": "Belgio"},
+            {"nome": "Pusateri's Fine Foods (Canada)", "slug": "pusateri's-fine-foods", "tipo": "pagina", "paese": "Canada"}
         ]
         
         if not os.path.exists(PARTNERS_FILE):
@@ -2190,15 +2254,22 @@ with tab5:
         with open(PARTNERS_FILE, "r", encoding="utf-8") as f:
             partners_gdo = json.load(f)
             
-        # Assicurati che le vecchie voci nel JSON abbiano il campo tipo
+        # Assicurati che le nuove insegne internazionali siano sincronizzate nel JSON
         updated_json = False
+        existing_slugs = {p["slug"] for p in partners_gdo}
+        for def_p in default_partners:
+            if def_p["slug"] not in existing_slugs:
+                partners_gdo.append(def_p)
+                existing_slugs.add(def_p["slug"])
+                updated_json = True
+
         for p in partners_gdo:
             if "tipo" not in p:
                 p["tipo"] = "pagina"
                 updated_json = True
         if updated_json:
             with open(PARTNERS_FILE, "w", encoding="utf-8") as f:
-                json.dump(partners_gdo, f)
+                json.dump(partners_gdo, f, ensure_ascii=False, indent=4)
                 
         # Mostra le insegne e i profili con emoji per distinguerli
         partner_display_options = []

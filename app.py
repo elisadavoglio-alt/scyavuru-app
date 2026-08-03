@@ -2221,6 +2221,7 @@ with tab5:
         st.markdown("### 🤝 Monitoraggio Pagine GDO & Profili Target")
         st.markdown("Monitora le pagine aziendali ufficiali delle insegne retail partner o i profili personali di buyer specifici. Estrai i loro ultimi post per commentare o fare repost al volo con bozze scritte dall'IA.")
         
+        PARTNERS_FILE = "partners_gdo_scyavuru.json"
         default_partners = [
             {"nome": "Coop Italia (Italia)", "slug": "coop-italia", "tipo": "pagina", "paese": "Italia"},
             {"nome": "Conad (Italia)", "slug": "conad", "tipo": "pagina", "paese": "Italia"},

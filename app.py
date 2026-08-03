@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import json
 import pandas as pd
+import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -847,7 +848,6 @@ def run_google_trends(terms: list, timeframe: str = "today 3-m", apify_api_key: 
 
 
 def auto_save_scraping(df, query):
-    import os
     from datetime import datetime
     
     # Sanitizza query per il nome file
@@ -917,8 +917,6 @@ with tab1:
         ]
     }
     
-    import json
-    import os
     if not os.path.exists(KEYWORDS_FILE):
         with open(KEYWORDS_FILE, "w", encoding="utf-8") as f:
             json.dump(default_keywords, f, indent=4)
@@ -2443,8 +2441,6 @@ with tab6:
     st.header("📌 Action Plan & To-Do (Riunione Ferdinando)")
     st.markdown("Questa sezione è uno strumento persistente per tenere traccia delle priorità operative decise nelle call strategiche. I progressi vengono salvati in automatico.")
     
-    import json
-    import os
     import re
 
     TODO_FILE = "todo_scyavuru.json"

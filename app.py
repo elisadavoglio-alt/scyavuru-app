@@ -991,12 +991,94 @@ with tab1:
     if "selected_company" not in st.session_state:
         st.session_state["selected_company"] = ""
         
-    st.markdown("### 🏢 Catene & Importatori Consigliati (Clicca per selezionare l'Azienda)")
+    st.markdown("### 🏢 Catene & Importatori Consigliati per Paese (Clicca per selezionare l'Azienda)")
     
-    with st.expander("🌟 USA — Catene Gourmet & Specialty (Whole Foods, Trader Joe's, Eataly...)", expanded=False):
+    with st.expander("🇦🇪 EMIRATI ARABI UNITI (EAU / Dubai & Abu Dhabi)", expanded=False):
+        eau_chains = ["Spinneys", "Waitrose UAE", "Choithrams", "Grandiose Supermarket", "Lulu Hypermarket", "Jones the Grocer"]
+        cols_eau = st.columns(3)
+        for idx, co in enumerate(eau_chains):
+            if cols_eau[idx % 3].button(co, key=f"btn_co_eau_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "United Arab Emirates"
+                st.rerun()
+
+    with st.expander("🇬🇧 REGNO UNITO (UK)", expanded=False):
+        uk_chains = ["Waitrose & Partners", "Marks & Spencer", "Sainsbury's", "Harrods Food Hall", "Selfridges Food Hall", "Ocado"]
+        cols_uk = st.columns(3)
+        for idx, co in enumerate(uk_chains):
+            if cols_uk[idx % 3].button(co, key=f"btn_co_uk_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "United Kingdom"
+                st.rerun()
+
+    with st.expander("🇩🇪 GERMANIA", expanded=False):
+        de_chains = ["Edeka", "Rewe Group", "Käfer Feinkost", "Alnatura", "Galeria Markthalle"]
+        cols_de = st.columns(3)
+        for idx, co in enumerate(de_chains):
+            if cols_de[idx % 3].button(co, key=f"btn_co_de_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "Germany"
+                st.rerun()
+
+    with st.expander("🇫🇷 FRANCIA", expanded=False):
+        fr_chains = ["La Grande Épicerie de Paris", "Monoprix", "Lafayette Gourmet", "Carrefour France"]
+        cols_fr = st.columns(2)
+        for idx, co in enumerate(fr_chains):
+            if cols_fr[idx % 2].button(co, key=f"btn_co_fr_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "France"
+                st.rerun()
+
+    with st.expander("🇨🇭 SVIZZERA", expanded=False):
+        ch_chains = ["Globus Delicatessa", "Manor Food", "Coop Schweiz", "Migros"]
+        cols_ch = st.columns(2)
+        for idx, co in enumerate(ch_chains):
+            if cols_ch[idx % 2].button(co, key=f"btn_co_ch_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "Switzerland"
+                st.rerun()
+
+    with st.expander("🇯🇵 GIAPPONE", expanded=False):
+        jp_chains = ["Seijo Ishii", "Isetan Mitsukoshi", "Dean & Deluca Japan", "Takashimaya"]
+        cols_jp = st.columns(2)
+        for idx, co in enumerate(jp_chains):
+            if cols_jp[idx % 2].button(co, key=f"btn_co_jp_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "Japan"
+                st.rerun()
+
+    with st.expander("🇸🇦 ARABIA SAUDITA", expanded=False):
+        ksa_chains = ["Danube Supermarket", "Manuel Market", "Tamimi Markets"]
+        cols_ksa = st.columns(3)
+        for idx, co in enumerate(ksa_chains):
+            if cols_ksa[idx % 3].button(co, key=f"btn_co_ksa_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "Saudi Arabia"
+                st.rerun()
+
+    with st.expander("🇳🇱 🇧🇪 BENELUX (Paesi Bassi & Belgio)", expanded=False):
+        bene_chains = ["Albert Heijn", "Rob The Gourmet Market", "Delhaize", "Jumbo Supermarkten"]
+        cols_bene = st.columns(2)
+        for idx, co in enumerate(bene_chains):
+            if cols_bene[idx % 2].button(co, key=f"btn_co_bene_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "Netherlands"
+                st.rerun()
+
+    with st.expander("🇨🇦 CANADA", expanded=False):
+        ca_chains = ["Pusateri's Fine Foods", "McEwan Fine Foods", "Eataly Toronto", "Loblaws"]
+        cols_ca = st.columns(2)
+        for idx, co in enumerate(ca_chains):
+            if cols_ca[idx % 2].button(co, key=f"btn_co_ca_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "Canada"
+                st.rerun()
+
+    with st.expander("🇺🇸 STATI UNITI (USA)", expanded=False):
         usa_gourmet = [
             "Whole Foods Market", "Trader Joe's", "Eataly USA", "Wegmans",
-            "The Fresh Market", "Sprouts Farmers Market", "Central Market", "Bristol Farms"
+            "The Fresh Market", "Sprouts Farmers Market", "Bristol Farms", "Dean & DeLuca",
+            "Kroger", "Albertsons", "Publix", "Atalanta Corporation", "KeHE Distributors", "UNFI"
         ]
         cols_ug = st.columns(3)
         for idx, co in enumerate(usa_gourmet):
@@ -1005,26 +1087,8 @@ with tab1:
                 st.session_state["location_input_val"] = "United States"
                 st.rerun()
 
-    with st.expander("🏬 USA — Giganti GDO & Supermercati (Kroger, Publix, Albertsons...)", expanded=False):
-        usa_gdo = ["Kroger", "Albertsons", "Publix", "H-E-B", "Stop & Shop", "Target"]
-        cols_ugd = st.columns(3)
-        for idx, co in enumerate(usa_gdo):
-            if cols_ugd[idx % 3].button(co, key=f"btn_co_ugd_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "United States"
-                st.rerun()
-
-    with st.expander("🚢 USA — Importatori & Distributori B2B (Atalanta, KeHE, UNFI...)", expanded=False):
-        usa_imp = ["Atalanta Corporation", "KeHE Distributors", "UNFI", "Manicaretti Italian Food Importers"]
-        cols_uimp = st.columns(2)
-        for idx, co in enumerate(usa_imp):
-            if cols_uimp[idx % 2].button(co, key=f"btn_co_uimp_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "United States"
-                st.rerun()
-
     with st.expander("🇮🇹 ITALIA — Supermercati & GDO (Esselunga, Coop, Conad...)", expanded=False):
-        it_gdo = ["Esselunga", "Coop Italia", "Conad", "Carrefour Italia", "Selex", "Pam Panorama", "Eurospin"]
+        it_gdo = ["Esselunga", "Coop Italia", "Conad", "Carrefour Italia", "Selex", "Pam Panorama", "Eurospin", "MD S.p.A."]
         cols_itg = st.columns(3)
         for idx, co in enumerate(it_gdo):
             if cols_itg[idx % 3].button(co, key=f"btn_co_itg_{idx}"):

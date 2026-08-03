@@ -2271,16 +2271,25 @@ with tab5:
             with open(PARTNERS_FILE, "w", encoding="utf-8") as f:
                 json.dump(partners_gdo, f, ensure_ascii=False, indent=4)
                 
-        # Mostra le insegne e i profili con emoji per distinguerli
+        # Filtro per Paese
+        paesi_disponibili = ["🌐 Tutti i Paesi"] + sorted(list({p.get("paese", "Italia") for p in partners_gdo}))
+        selected_paese = st.selectbox("🌍 Filtra insegne per Paese Target:", options=paesi_disponibili, key="partner_country_filter")
+        
+        # Filtra i partner in base al paese selezionato
+        if selected_paese != "🌐 Tutti i Paesi":
+            filtered_partners = [p for p in partners_gdo if p.get("paese", "Italia") == selected_paese]
+        else:
+            filtered_partners = partners_gdo
+            
         partner_display_options = []
-        for p in partners_gdo:
+        for p in filtered_partners:
             emoji = "🏢" if p.get("tipo", "pagina") == "pagina" else "👤"
             partner_display_options.append(f"{emoji} {p['nome']}")
             
         selected_display = st.multiselect(
             "🎯 Seleziona le Pagine o i Profili da monitorare:",
             options=partner_display_options,
-            default=partner_display_options[:3],
+            default=partner_display_options[:min(3, len(partner_display_options))],
             key="partners_to_scan_select_new"
         )
         

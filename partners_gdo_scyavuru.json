@@ -1,25 +1,320 @@
 [
-    {"nome": "Coop Italia (Italia)", "slug": "coop-italia", "tipo": "pagina", "paese": "Italia"},
-    {"nome": "Conad (Italia)", "slug": "conad", "tipo": "pagina", "paese": "Italia"},
-    {"nome": "Esselunga (Italia)", "slug": "esselunga", "tipo": "pagina", "paese": "Italia"},
-    {"nome": "Carrefour Italia (Italia)", "slug": "carrefour-italia", "tipo": "pagina", "paese": "Italia"},
-    {"nome": "MD S.p.A. (Italia)", "slug": "md-s-p-a-", "tipo": "pagina", "paese": "Italia"},
-    {"nome": "Whole Foods Market (USA)", "slug": "whole-foods-market", "tipo": "pagina", "paese": "Stati Uniti"},
-    {"nome": "Trader Joe's (USA)", "slug": "trader-joe's", "tipo": "pagina", "paese": "Stati Uniti"},
-    {"nome": "Eataly USA (USA)", "slug": "eataly", "tipo": "pagina", "paese": "Stati Uniti"},
-    {"nome": "Spinneys (EAU / Dubai)", "slug": "spinneys", "tipo": "pagina", "paese": "Emirati Arabi Uniti"},
-    {"nome": "Waitrose UAE (EAU / Dubai)", "slug": "waitrose-uae", "tipo": "pagina", "paese": "Emirati Arabi Uniti"},
-    {"nome": "Waitrose & Partners (UK)", "slug": "waitrose", "tipo": "pagina", "paese": "Regno Unito"},
-    {"nome": "Marks & Spencer Food (UK)", "slug": "marks-and-spencer", "tipo": "pagina", "paese": "Regno Unito"},
-    {"nome": "Edeka (Germania)", "slug": "edeka", "tipo": "pagina", "paese": "Germania"},
-    {"nome": "Rewe Group (Germania)", "slug": "rewe-group", "tipo": "pagina", "paese": "Germania"},
-    {"nome": "La Grande Épicerie de Paris (Francia)", "slug": "la-grande-epicerie-de-paris", "tipo": "pagina", "paese": "Francia"},
-    {"nome": "Monoprix (Francia)", "slug": "monoprix", "tipo": "pagina", "paese": "Francia"},
-    {"nome": "Globus Delicatessa (Svizzera)", "slug": "magazine-zum-globus", "tipo": "pagina", "paese": "Svizzera"},
-    {"nome": "Manor Food (Svizzera)", "slug": "manor-ag", "tipo": "pagina", "paese": "Svizzera"},
-    {"nome": "Seijo Ishii (Giappone)", "slug": "seijo-ishii", "tipo": "pagina", "paese": "Giappone"},
-    {"nome": "Danube Supermarket (Arabia Saudita)", "slug": "danube-co", "tipo": "pagina", "paese": "Arabia Saudita"},
-    {"nome": "Albert Heijn (Paesi Bassi)", "slug": "albert-heijn", "tipo": "pagina", "paese": "Paesi Bassi"},
-    {"nome": "Rob The Gourmet Market (Belgio)", "slug": "rob-the-gourmet-market", "tipo": "pagina", "paese": "Belgio"},
-    {"nome": "Pusateri's Fine Foods (Canada)", "slug": "pusateri's-fine-foods", "tipo": "pagina", "paese": "Canada"}
+    {
+        "nome": "Coop Italia (Italia)",
+        "slug": "coop-italia",
+        "tipo": "pagina",
+        "paese": "Italia"
+    },
+    {
+        "nome": "Conad (Italia)",
+        "slug": "conad",
+        "tipo": "pagina",
+        "paese": "Italia"
+    },
+    {
+        "nome": "Esselunga (Italia)",
+        "slug": "esselunga",
+        "tipo": "pagina",
+        "paese": "Italia"
+    },
+    {
+        "nome": "Carrefour Italia (Italia)",
+        "slug": "carrefour-italia",
+        "tipo": "pagina",
+        "paese": "Italia"
+    },
+    {
+        "nome": "MD S.p.A. (Italia)",
+        "slug": "md-s-p-a-",
+        "tipo": "pagina",
+        "paese": "Italia"
+    },
+    {
+        "nome": "Whole Foods Market (USA)",
+        "slug": "whole-foods-market",
+        "tipo": "pagina",
+        "paese": "Stati Uniti"
+    },
+    {
+        "nome": "Trader Joe's (USA)",
+        "slug": "trader-joe's",
+        "tipo": "pagina",
+        "paese": "Stati Uniti"
+    },
+    {
+        "nome": "Eataly USA (USA)",
+        "slug": "eataly",
+        "tipo": "pagina",
+        "paese": "Stati Uniti"
+    },
+    {
+        "nome": "The Fresh Market (USA)",
+        "slug": "the-fresh-market",
+        "tipo": "pagina",
+        "paese": "Stati Uniti"
+    },
+    {
+        "nome": "Sprouts Farmers Market (USA)",
+        "slug": "sprouts-farmers-market",
+        "tipo": "pagina",
+        "paese": "Stati Uniti"
+    },
+    {
+        "nome": "Wegmans Food Markets (USA)",
+        "slug": "wegmans-food-markets",
+        "tipo": "pagina",
+        "paese": "Stati Uniti"
+    },
+    {
+        "nome": "Bristol Farms (USA)",
+        "slug": "bristol-farms",
+        "tipo": "pagina",
+        "paese": "Stati Uniti"
+    },
+    {
+        "nome": "Dean & DeLuca (USA)",
+        "slug": "dean-&-deluca",
+        "tipo": "pagina",
+        "paese": "Stati Uniti"
+    },
+    {
+        "nome": "Spinneys (EAU / Dubai)",
+        "slug": "spinneys",
+        "tipo": "pagina",
+        "paese": "Emirati Arabi Uniti"
+    },
+    {
+        "nome": "Waitrose UAE (EAU / Dubai)",
+        "slug": "waitrose-uae",
+        "tipo": "pagina",
+        "paese": "Emirati Arabi Uniti"
+    },
+    {
+        "nome": "Choithrams (EAU / Dubai)",
+        "slug": "choithrams",
+        "tipo": "pagina",
+        "paese": "Emirati Arabi Uniti"
+    },
+    {
+        "nome": "Grandiose Supermarket (EAU / Dubai)",
+        "slug": "grandiose-supermarket",
+        "tipo": "pagina",
+        "paese": "Emirati Arabi Uniti"
+    },
+    {
+        "nome": "Lulu Hypermarket (EAU / Dubai)",
+        "slug": "lulu-hypermarket",
+        "tipo": "pagina",
+        "paese": "Emirati Arabi Uniti"
+    },
+    {
+        "nome": "Jones the Grocer (EAU / Dubai)",
+        "slug": "jones-the-grocer",
+        "tipo": "pagina",
+        "paese": "Emirati Arabi Uniti"
+    },
+    {
+        "nome": "Waitrose & Partners (UK)",
+        "slug": "waitrose",
+        "tipo": "pagina",
+        "paese": "Regno Unito"
+    },
+    {
+        "nome": "Marks & Spencer Food (UK)",
+        "slug": "marks-and-spencer",
+        "tipo": "pagina",
+        "paese": "Regno Unito"
+    },
+    {
+        "nome": "Sainsbury's (UK)",
+        "slug": "sainsbury's",
+        "tipo": "pagina",
+        "paese": "Regno Unito"
+    },
+    {
+        "nome": "Harrods Food Hall (UK)",
+        "slug": "harrods",
+        "tipo": "pagina",
+        "paese": "Regno Unito"
+    },
+    {
+        "nome": "Selfridges Food Hall (UK)",
+        "slug": "selfridges",
+        "tipo": "pagina",
+        "paese": "Regno Unito"
+    },
+    {
+        "nome": "Ocado (UK)",
+        "slug": "ocado",
+        "tipo": "pagina",
+        "paese": "Regno Unito"
+    },
+    {
+        "nome": "Edeka (Germania)",
+        "slug": "edeka",
+        "tipo": "pagina",
+        "paese": "Germania"
+    },
+    {
+        "nome": "Rewe Group (Germania)",
+        "slug": "rewe-group",
+        "tipo": "pagina",
+        "paese": "Germania"
+    },
+    {
+        "nome": "Käfer Feinkost (Germania)",
+        "slug": "feinkost-kaefer",
+        "tipo": "pagina",
+        "paese": "Germania"
+    },
+    {
+        "nome": "Alnatura (Germania)",
+        "slug": "alnatura",
+        "tipo": "pagina",
+        "paese": "Germania"
+    },
+    {
+        "nome": "Galeria Markthalle (Germania)",
+        "slug": "galeria-karstadt-kaufhof",
+        "tipo": "pagina",
+        "paese": "Germania"
+    },
+    {
+        "nome": "La Grande Épicerie de Paris (Francia)",
+        "slug": "la-grande-epicerie-de-paris",
+        "tipo": "pagina",
+        "paese": "Francia"
+    },
+    {
+        "nome": "Monoprix (Francia)",
+        "slug": "monoprix",
+        "tipo": "pagina",
+        "paese": "Francia"
+    },
+    {
+        "nome": "Lafayette Gourmet (Francia)",
+        "slug": "galeries-lafayette",
+        "tipo": "pagina",
+        "paese": "Francia"
+    },
+    {
+        "nome": "Carrefour France (Francia)",
+        "slug": "carrefour",
+        "tipo": "pagina",
+        "paese": "Francia"
+    },
+    {
+        "nome": "Globus Delicatessa (Svizzera)",
+        "slug": "magazine-zum-globus",
+        "tipo": "pagina",
+        "paese": "Svizzera"
+    },
+    {
+        "nome": "Manor Food (Svizzera)",
+        "slug": "manor-ag",
+        "tipo": "pagina",
+        "paese": "Svizzera"
+    },
+    {
+        "nome": "Coop Schweiz (Svizzera)",
+        "slug": "coop",
+        "tipo": "pagina",
+        "paese": "Svizzera"
+    },
+    {
+        "nome": "Migros (Svizzera)",
+        "slug": "migros",
+        "tipo": "pagina",
+        "paese": "Svizzera"
+    },
+    {
+        "nome": "Seijo Ishii (Giappone)",
+        "slug": "seijo-ishii",
+        "tipo": "pagina",
+        "paese": "Giappone"
+    },
+    {
+        "nome": "Isetan Mitsukoshi (Giappone)",
+        "slug": "isetan-mitsukoshi",
+        "tipo": "pagina",
+        "paese": "Giappone"
+    },
+    {
+        "nome": "Dean & Deluca Japan (Giappone)",
+        "slug": "dean-&-deluca-japan",
+        "tipo": "pagina",
+        "paese": "Giappone"
+    },
+    {
+        "nome": "Takashimaya (Giappone)",
+        "slug": "takashimaya",
+        "tipo": "pagina",
+        "paese": "Giappone"
+    },
+    {
+        "nome": "Danube Supermarket (Arabia Saudita)",
+        "slug": "danube-co",
+        "tipo": "pagina",
+        "paese": "Arabia Saudita"
+    },
+    {
+        "nome": "Manuel Market (Arabia Saudita)",
+        "slug": "manuel-market",
+        "tipo": "pagina",
+        "paese": "Arabia Saudita"
+    },
+    {
+        "nome": "Tamimi Markets (Arabia Saudita)",
+        "slug": "tamimi-markets",
+        "tipo": "pagina",
+        "paese": "Arabia Saudita"
+    },
+    {
+        "nome": "Albert Heijn (Paesi Bassi)",
+        "slug": "albert-heijn",
+        "tipo": "pagina",
+        "paese": "Paesi Bassi"
+    },
+    {
+        "nome": "Rob The Gourmet Market (Belgio)",
+        "slug": "rob-the-gourmet-market",
+        "tipo": "pagina",
+        "paese": "Belgio"
+    },
+    {
+        "nome": "Delhaize (Belgio)",
+        "slug": "delhaize-le-lion",
+        "tipo": "pagina",
+        "paese": "Belgio"
+    },
+    {
+        "nome": "Jumbo Supermarkten (Paesi Bassi)",
+        "slug": "jumbo-supermarkten",
+        "tipo": "pagina",
+        "paese": "Paesi Bassi"
+    },
+    {
+        "nome": "Pusateri's Fine Foods (Canada)",
+        "slug": "pusateri's-fine-foods",
+        "tipo": "pagina",
+        "paese": "Canada"
+    },
+    {
+        "nome": "McEwan Fine Foods (Canada)",
+        "slug": "mcewan-fine-foods",
+        "tipo": "pagina",
+        "paese": "Canada"
+    },
+    {
+        "nome": "Eataly Toronto (Canada)",
+        "slug": "eataly-toronto",
+        "tipo": "pagina",
+        "paese": "Canada"
+    },
+    {
+        "nome": "Loblaws (Canada)",
+        "slug": "loblaws",
+        "tipo": "pagina",
+        "paese": "Canada"
+    }
 ]

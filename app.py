@@ -1066,10 +1066,10 @@ with tab1:
                 st.rerun()
 
     with st.expander("🇨🇦 CANADA", expanded=False):
-        ca_chains = ["Pusateri's Fine Foods", "McEwan Fine Foods", "Eataly Toronto", "Loblaws"]
-        cols_ca = st.columns(2)
+        ca_chains = ["Pusateri's Fine Foods", "McEwan Fine Foods", "Eataly Toronto", "Loblaws", "Sobeys", "Metro", "Safeway", "IGA", "No Frills", "Food Basics", "FreshCo", "Super C", "Real Canadian Superstore", "Save-On-Foods"]
+        cols_ca = st.columns(3)
         for idx, co in enumerate(ca_chains):
-            if cols_ca[idx % 2].button(co, key=f"btn_co_ca_{idx}"):
+            if cols_ca[idx % 3].button(co, key=f"btn_co_ca_{idx}"):
                 st.session_state["selected_company"] = co
                 st.session_state["location_input_val"] = "Canada"
                 st.rerun()
@@ -1104,9 +1104,9 @@ with tab1:
         
     col_a, col_b = st.columns([3, 1])
     with col_a:
-        ruolo_input = st.text_input("🎯 Qualifica da cercare (es. Buyer Food, Category Manager)", value=st.session_state["selected_keyword"])
-        azienda_input = st.text_input("🏢 Azienda Specifica (Opzionale - Clicca un bottone sopra o scrivi)", value=st.session_state.get("selected_company", ""))
-        location_input = st.text_input("📍 Nazione / Città (es. United States, Italy)", value=st.session_state.get("location_input_val", "Italy"))
+        ruolo_input = st.text_input("🎯 Qualifica da cercare (es. Buyer Food, Category Manager)", key="selected_keyword")
+        azienda_input = st.text_input("🏢 Azienda Specifica (Opzionale - Clicca un bottone sopra o scrivi)", key="selected_company")
+        location_input = st.text_input("📍 Nazione / Città (es. United States, Italy)", key="location_input_val")
     with col_b:
         max_profili_input = st.number_input("# Profili", min_value=1, max_value=1000, value=20)
 
@@ -2309,7 +2309,17 @@ with tab5:
             {"nome": "Danube Supermarket (Arabia Saudita)", "slug": "danube-co", "tipo": "pagina", "paese": "Arabia Saudita"},
             {"nome": "Albert Heijn (Paesi Bassi)", "slug": "albert-heijn", "tipo": "pagina", "paese": "Paesi Bassi"},
             {"nome": "Rob The Gourmet Market (Belgio)", "slug": "rob-the-gourmet-market", "tipo": "pagina", "paese": "Belgio"},
-            {"nome": "Pusateri's Fine Foods (Canada)", "slug": "pusateri's-fine-foods", "tipo": "pagina", "paese": "Canada"}
+            {"nome": "Pusateri's Fine Foods (Canada)", "slug": "pusateri's-fine-foods", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "Sobeys (Canada)", "slug": "sobeys", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "Metro (Canada)", "slug": "metro", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "Safeway (Canada)", "slug": "safeway", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "IGA (Canada)", "slug": "iga", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "No Frills (Canada)", "slug": "no-frills", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "Food Basics (Canada)", "slug": "food-basics", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "FreshCo (Canada)", "slug": "freshco", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "Super C (Canada)", "slug": "super-c", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "Real Canadian Superstore (Canada)", "slug": "real-canadian-superstore", "tipo": "pagina", "paese": "Canada"},
+            {"nome": "Save-On-Foods (Canada)", "slug": "save-on-foods", "tipo": "pagina", "paese": "Canada"}
         ]
         
         if not os.path.exists(PARTNERS_FILE):

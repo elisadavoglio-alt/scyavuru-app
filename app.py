@@ -1029,6 +1029,15 @@ with tab1:
                 st.session_state["location_input_val"] = "France"
                 st.rerun()
 
+    with st.expander("🇩🇰 DANIMARCA", expanded=False):
+        dk_chains = ["Salling Group", "Coop Danmark", "Dagrofa", "Magasin du Nord"]
+        cols_dk = st.columns(2)
+        for idx, co in enumerate(dk_chains):
+            if cols_dk[idx % 2].button(co, key=f"btn_co_dk_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "Denmark"
+                st.rerun()
+
     with st.expander("🇨🇭 SVIZZERA", expanded=False):
         ch_chains = ["Globus Delicatessa", "Manor Food", "Coop Schweiz", "Migros"]
         cols_ch = st.columns(2)
@@ -2305,6 +2314,7 @@ with tab5:
             {"nome": "Monoprix (Francia)", "slug": "monoprix", "tipo": "pagina", "paese": "Francia"},
             {"nome": "Globus Delicatessa (Svizzera)", "slug": "magazine-zum-globus", "tipo": "pagina", "paese": "Svizzera"},
             {"nome": "Manor Food (Svizzera)", "slug": "manor-ag", "tipo": "pagina", "paese": "Svizzera"},
+            {"nome": "Magasin du Nord (Danimarca)", "slug": "magasin-du-nord", "tipo": "pagina", "paese": "Danimarca"},
             {"nome": "Seijo Ishii (Giappone)", "slug": "seijo-ishii", "tipo": "pagina", "paese": "Giappone"},
             {"nome": "Danube Supermarket (Arabia Saudita)", "slug": "danube-co", "tipo": "pagina", "paese": "Arabia Saudita"},
             {"nome": "Albert Heijn (Paesi Bassi)", "slug": "albert-heijn", "tipo": "pagina", "paese": "Paesi Bassi"},

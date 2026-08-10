@@ -1,31 +1,30 @@
 {
     "internazionale": [
-        "Buyer Sweet Grocery",
-        "Category Manager Sweet Grocery",
-        "Buyer Confectionery & Breakfast",
-        "Buyer Confectionery",
-        "Buyer Biscuits & Spreads",
-        "Ambient Grocery Buyer",
-        "International Buyer Grocery",
-        "Global Sourcing Manager Confectionery",
-        "Import Manager Food",
-        "Category Manager Spreads & Jams",
+        "Food Buyer",
+        "Grocery Buyer",
         "Gourmet Food Buyer",
         "Fine Food Buyer",
-        "Confectionery Category Manager"
+        "Category Manager Grocery",
+        "Category Manager Confectionery",
+        "Private Label Category Manager",
+        "Specialty Foods Buyer",
+        "Import Buyer Food",
+        "Sourcing Manager Grocery",
+        "Head of Buying Food",
+        "Procurement Manager Food"
     ],
     "italiano": [
         "Buyer Food",
         "Category Manager Food",
-        "Responsabile Acquisti Alimentari Confezionati",
-        "Buyer Alimentari Confezionati",
-        "Category Manager Drogheria Alimentare",
-        "Buyer Generi Vari",
+        "Responsabile Acquisti Alimentari",
+        "Responsabile Acquisti GDO",
+        "Buyer Drogheria",
         "Buyer Dolciario",
         "Category Manager Dolciario",
-        "Responsabile Acquisti Drogheria",
-        "Buyer Specialità Alimentari",
-        "HoReCa Purchasing Manager",
+        "Buyer Specialità",
+        "Buyer Premium Food",
+        "Category Manager Private Label",
+        "Purchasing Manager Food",
         "Responsabile Acquisti HoReCa"
     ]
 }

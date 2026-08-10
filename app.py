@@ -1145,7 +1145,7 @@ with tab1:
         with col_f2:
             must_exclude_raw = st.text_input(
                 "🚫 NON DEVE contenere (NOT)",
-                value="",
+                value="marketing, trade marketing, sales, account manager, key account, merchandiser, assistant buyer, junior buyer, store manager, area manager, hr, recruiting, comunicazione, export manager, supply chain, category analyst",
                 placeholder="es: marketing, hr, recruiting",
                 help="Profili che contengono queste parole vengono esclusi."
             )

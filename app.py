@@ -879,12 +879,168 @@ def auto_save_scraping(df, query):
             return f"💾 **Salvato in automatico nell'archivio del server:** `{server_dir}/{filename}`"
         except Exception as e:
             return f"⚠️ Errore salvataggio automatico server: {e}"
+# --- FUNZIONI DI SCORING & CLASSIFICAZIONE B2B SCYAVURU ---
+def scy_classify_company(company_name):
+    gdo_keywords = [
+        "dagrofa", "coop", "superbrugsen", "irma", "føtex", "foetex", "salling", 
+        "nemlig", "bilka", "netto", "spar", "menu", "meny", "lidl", "aldi", "rema",
+        "conad", "esselunga", "carrefour", "leclerc", "tesco", "sainsbury", "auchan"
+    ]
+    fs_keywords = ["foodservice", "catering", "wholesale", "grossista", "ingrosso", "wholesaler", "distributore food"]
+    imp_keywords = ["import", "importer", "trading", "gourmet", "brand", "foodmood", "delicatessen", "specialità", "specialty", "eccellenze", "selezione"]
+    convenience_keywords = ["ok plus", "7-eleven", "7 eleven", "q8", "circle k", "shell", "convenience", "station", "stazione di servizio"]
+    public_keywords = ["regione", "comune", "ospedale", "ente pubblico", "region", "kommune", "hospital", "municipality", "municipal", "sjaelland", "sjælland"]
+    non_food_keywords = ["mediexpert", "nhg", "lego", "licensee", "media", "marketing", "licensing", "software", "it", "tech", "bank", "banca", "real estate", "consulting", "consulenza"]
+    
+    comp_lower = str(company_name).lower().strip()
+    
+    if any(k in comp_lower for k in fs_keywords):
+        return "foodservice_wholesaler"
+    elif any(k in comp_lower for k in imp_keywords):
+        return "importer_specialty"
+    elif any(k in comp_lower for k in gdo_keywords):
+        return "gdo_supermarket"
+    elif any(k in comp_lower for k in convenience_keywords):
+        return "discount_convenience"
+    elif any(k in comp_lower for k in public_keywords):
+        return "public_sector"
+    elif any(k in comp_lower for k in non_food_keywords):
+        return "non_food"
+    else:
+        return "other"
 
+def scy_classify_role(job_title, company_type):
+    title_lower = str(job_title).lower().strip()
+    
+    non_relevant_keywords = ["ceo", "founder", "marketing", "licensing", "sales", "hiring", "recruiter", "developer", "designer", "architect", "hr"]
+    if company_type in ("non_food", "public_sector") and any(k in title_lower for k in non_relevant_keywords):
+        return "non_relevant"
+    
+    out_of_scope_keywords = ["marketing assistant", "hr manager", "recruiting", "designer"]
+    if any(k in title_lower for k in out_of_scope_keywords):
+        return "non_relevant"
+        
+    strategic_keywords = ["director", "head of", "chief commercial officer", "cco", "commercial director", "procurement manager", "chief buyer"]
+    if any(k in title_lower for k in strategic_keywords):
+        return "strategic"
+        
+    buyer_keywords = ["category manager", "buyer", "indkøber", "indkoeber", "private label", "purchasing manager", "responsabile acquisti", "addetto acquisti"]
+    if any(k in title_lower for k in buyer_keywords):
+        return "category_buyer"
+        
+    operational_keywords = ["purchaser", "product manager", "assistant buyer", "operational", "assistente acquisti", "specialist", "produktchef"]
+    if any(k in title_lower for k in operational_keywords):
+        return "operational"
+        
+    if any(k in title_lower for k in ["ceo", "founder", "owner", "titolare", "amministratore"]):
+        return "strategic"
+        
+    return "operational"
+
+def scy_calculate_category_fit(company_type):
+    if company_type in ("importer_specialty", "foodservice_wholesaler"):
+        return "high"
+    elif company_type in ("gdo_supermarket", "discount_convenience"):
+        return "medium"
+    else:
+        return "low"
+
+def scy_score_lead(row):
+    company_type = scy_classify_company(row["company_name"])
+    role_level = scy_classify_role(row["job_title"], company_type)
+    category_fit = scy_calculate_category_fit(company_type)
+    
+    score = 0
+    if company_type == "importer_specialty":
+        score += 30
+    elif company_type == "foodservice_wholesaler":
+        score += 25
+    elif company_type == "gdo_supermarket":
+        score += 20
+    elif company_type == "discount_convenience":
+        score += 10
+    elif company_type == "non_food":
+        score -= 15
+    elif company_type == "public_sector":
+        score -= 15
+        
+    if category_fit == "high":
+        score += 15
+    elif category_fit == "medium":
+        score += 5
+    elif category_fit == "low":
+        score += 0
+        
+    if role_level == "category_buyer":
+        score += 15
+    elif role_level == "strategic":
+        score += 10
+    elif role_level == "operational":
+        score += 5
+    elif role_level == "non_relevant":
+        score -= 15
+        
+    priority = "C"
+    if score >= 40:
+        priority = "A"
+    elif score >= 20:
+        priority = "B"
+        
+    return pd.Series({
+        "company_type": company_type,
+        "role_level": role_level,
+        "category_fit": category_fit,
+        "priority_score": score,
+        "priority": priority
+    })
+
+def map_lead_columns(df):
+    mapping = {}
+    cols_lower = {str(col).lower().strip(): col for col in df.columns}
+    
+    synonyms = {
+        "name": ["nome", "name", "full name", "nome completo", "fullname", "first name", "cognome", "first_name", "last_name"],
+        "job_title": ["qualifica", "job_title", "jobtitle", "title", "ruolo", "headline", "position"],
+        "company_name": ["azienda", "company_name", "companyname", "company", "organization", "società"],
+        "email": ["email", "e-mail", "email address", "indirizzo email", "mail"],
+        "country": ["location", "country", "paese", "nazione", "località", "città", "city"],
+        "validity_score": ["score email", "validity_score", "validity", "score", "email score", "email_score", "affidabilità"],
+        "linkedin_url": ["link profilo", "linkedin_url", "linkedinurl", "link", "url", "profilo linkedin"]
+    }
+    
+    for target, keys in synonyms.items():
+        found = False
+        for key in keys:
+            if key in cols_lower:
+                mapping[cols_lower[key]] = target
+                found = True
+                break
+        if not found:
+            for col_lower, original_col in cols_lower.items():
+                if any(k in col_lower for k in keys):
+                    mapping[original_col] = target
+                    found = True
+                    break
+                    
+    renamed_df = df.rename(columns=mapping)
+    
+    mandatory = ["name", "company_name", "job_title"]
+    missing = [col for col in mandatory if col not in renamed_df.columns]
+    
+    if missing:
+        raise ValueError(f"Colonne obbligatorie mancanti: {', '.join(missing)}. Assicurati che il file contenga colonne equivalenti a Nome, Azienda e Qualifica.")
+        
+    for opt in ["email", "country", "validity_score", "linkedin_url"]:
+        if opt not in renamed_df.columns:
+            renamed_df[opt] = "N/D"
+            
+    return renamed_df
 
 # --- TABS ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab_scoring, tab3, tab4, tab5, tab6 = st.tabs([
     "🔍 Estrazione Lead (Scraping)",
     "🧹 Pulizia Database (Deep Cleaning)",
+    "🎯 Scoring & Analisi Lead",
     "🏆 Analisi Competitor",
     "📰 Piano Editoriale",
     "📈 Google & LinkedIn Trends",
@@ -1362,6 +1518,165 @@ with tab2:
                     st.error(f"Errore durante l'elaborazione: {e}")
 
 
+
+
+# ----------------------------------------------------
+# TAB SCORING: SCORING & ANALISI LEAD B2B
+# ----------------------------------------------------
+with tab_scoring:
+    st.header("🎯 Scoring & Prioritarizzazione Lead B2B")
+    st.markdown(
+        "Carica un file Excel o CSV con i tuoi contatti commerciali per classificarli "
+        "e calcolare automaticamente il loro livello di priorità per Scyavuru."
+    )
+    
+    uploaded_scoring_file = st.file_uploader(
+        "Carica file contatti GDO / Export (Excel o CSV)",
+        type=["xlsx", "csv"],
+        key="scoring_uploader"
+    )
+    
+    if uploaded_scoring_file is not None:
+        try:
+            # 1. Caricamento del file
+            if uploaded_scoring_file.name.endswith(".xlsx"):
+                df_raw = pd.read_excel(uploaded_scoring_file)
+            else:
+                df_raw = pd.read_csv(uploaded_scoring_file)
+                
+            st.success(f"File caricato con successo! Rilevate {len(df_raw)} righe.")
+            
+            # 2. Mappatura colonne
+            try:
+                df_mapped = map_lead_columns(df_raw)
+            except ValueError as ve:
+                st.error(str(ve))
+                st.stop()
+                
+            # 3. Esecuzione pipeline di scoring
+            with st.spinner("Classificazione e calcolo scoring in corso..."):
+                scored_data = df_mapped.join(df_mapped.apply(scy_score_lead, axis=1))
+                
+            # 4. Pannello filtri
+            st.markdown("### 🎛️ Filtra i Lead per Canale e Priorità")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                def extract_country_name(c):
+                    if not c or pd.isna(c) or c == "N/D":
+                        return "Sconosciuto"
+                    parts = [p.strip() for p in str(c).split(",")]
+                    return parts[-1]
+                
+                countries = sorted(list(set(scored_data["country"].apply(extract_country_name))))
+                selected_countries = st.multiselect("Paese / Località", options=countries, default=countries)
+                
+            with col2:
+                company_types = sorted(list(set(scored_data["company_type"])))
+                selected_types = st.multiselect("Tipo Canale / Azienda", options=company_types, default=company_types)
+                
+            with col3:
+                priorities = ["A", "B", "C"]
+                selected_priorities = st.multiselect("Livello Priorità", options=priorities, default=priorities)
+                
+            # Filtriamo il DataFrame
+            filtered_scored = scored_data[
+                (scored_data["country"].apply(extract_country_name).isin(selected_countries)) &
+                (scored_data["company_type"].isin(selected_types)) &
+                (scored_data["priority"].isin(selected_priorities))
+            ]
+            
+            # Ordinamento di default
+            filtered_scored = filtered_scored.sort_values(by="priority_score", ascending=False)
+            
+            # Visualizzazione statistiche veloci
+            st.markdown("---")
+            stat_a, stat_b, stat_c, stat_tot = st.columns(4)
+            with stat_a:
+                st.metric("Priority A (Caldissimi 🔥)", len(filtered_scored[filtered_scored["priority"] == "A"]))
+            with stat_b:
+                st.metric("Priority B (Interessanti ⚡)", len(filtered_scored[filtered_scored["priority"] == "B"]))
+            with stat_c:
+                st.metric("Priority C (Bassa priorità ❄️)", len(filtered_scored[filtered_scored["priority"] == "C"]))
+            with stat_tot:
+                st.metric("Totale Lead Filtrati", len(filtered_scored))
+                
+            st.markdown("### 📊 Tabella dei Contatti")
+            
+            # Selezioniamo le colonne da mostrare in ordine gradevole
+            columns_display_order = [
+                "name", "job_title", "company_name", "country", "email", 
+                "validity_score", "company_type", "role_level", "category_fit", 
+                "priority_score", "priority", "linkedin_url"
+            ]
+            
+            pretty_columns = {
+                "name": "Nome",
+                "job_title": "Qualifica",
+                "company_name": "Azienda",
+                "country": "Location",
+                "email": "Email",
+                "validity_score": "Score Email",
+                "company_type": "Canale Azienda",
+                "role_level": "Livello Ruolo",
+                "category_fit": "Fit Prodotto",
+                "priority_score": "Score",
+                "priority": "Priorità",
+                "linkedin_url": "Profilo LinkedIn"
+            }
+            
+            df_display = filtered_scored[columns_display_order].rename(columns=pretty_columns)
+            
+            def highlight_priority(val):
+                if val == "A":
+                    return 'background-color: #D5F5E3; color: #196F3D; font-weight: bold;'
+                elif val == "B":
+                    return 'background-color: #FCF3CF; color: #7D6608; font-weight: bold;'
+                elif val == "C":
+                    return 'background-color: #FADBD8; color: #78281F; font-weight: bold;'
+                return ''
+                
+            try:
+                # pandas mapping support per 1.x e 2.x
+                if hasattr(df_display.style, "map"):
+                    styled_df = df_display.style.map(highlight_priority, subset=["Priorità"])
+                else:
+                    styled_df = df_display.style.applymap(highlight_priority, subset=["Priorità"])
+                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            except Exception as se_err:
+                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                
+            # 5. Download e Export
+            st.markdown("### 📥 Esporta i Risultati")
+            
+            col_d1, col_d2 = st.columns(2)
+            
+            with col_d1:
+                df_priority_a = filtered_scored[filtered_scored["priority"] == "A"]
+                csv_a = df_priority_a.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="🔥 Scarica SOLO Priority A (CSV)",
+                    data=csv_a,
+                    file_name="Scyavuru_Lead_Priority_A.csv",
+                    mime="text/csv",
+                    type="primary",
+                    use_container_width=True
+                )
+                
+            with col_d2:
+                csv_filtered = filtered_scored.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📂 Scarica Database Filtrato Corrente (CSV)",
+                    data=csv_filtered,
+                    file_name="Scyavuru_Lead_Database_Filtrato.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+                
+        except Exception as ex:
+            st.error(f"Errore caricamento o parsing file: {ex}")
+            st.exception(ex)
 
 
 # ----------------------------------------------------

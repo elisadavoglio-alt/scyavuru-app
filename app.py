@@ -953,10 +953,108 @@ def scy_calculate_category_fit(company_type):
     else:
         return "low"
 
+def scy_detect_segments(job_title, country=""):
+    title_lower = str(job_title).lower().strip()
+    country_lower = str(country).lower().strip()
+    is_it = any(c in country_lower for c in ["italia", "italy", "it"]) or (country_lower == "")
+    
+    segments = []
+    
+    # 1. segment_colazione (+15)
+    colazione_kws = ["prima colazione", "colazione", "spalmabil", "confettur", "marmellat", "breakfast", "spread", "jam", "dispensa colazione"]
+    if any(k in title_lower for k in colazione_kws):
+        segments.append("segment_colazione")
+        
+    # 2. segment_import_specialty (+15)
+    import_specialty_kws = [
+        "gourmet", "fine food", "specialty food", "specialità", "italian food", "mediterranean food",
+        "import manager", "import buyer", "importer food", "specialty food importer", "fine food importer",
+        "italian food importer", "delicatessen", "eccellenze", "selezione"
+    ]
+    if any(k in title_lower for k in import_specialty_kws) or ("import" in title_lower and "food" in title_lower) or ("importer" in title_lower and "food" in title_lower):
+        segments.append("segment_import_specialty")
+        
+    # 3. segment_mdd_pl (+10)
+    mdd_pl_kws = ["responsabile mdd", "marca del distributore", "private label", "marca privata", "marchio del distributore"]
+    if is_it and any(k in title_lower for k in mdd_pl_kws):
+        segments.append("segment_mdd_pl")
+        
+    # 4. segment_mdd_pl_int (+10)
+    mdd_pl_int_kws = ["private label", "own brand", "own label", "store brand", "white label", "mdd", "marca del distributore"]
+    if not is_it and any(k in title_lower for k in mdd_pl_int_kws):
+        segments.append("segment_mdd_pl_int")
+        
+    # 5. segment_grocery_drogheria (+10)
+    grocery_drogheria_kws = ["grocery", "drogheria", "dispensa"]
+    if is_it and any(k in title_lower for k in grocery_drogheria_kws):
+        segments.append("segment_grocery_drogheria")
+        
+    # 6. segment_dolciario_pasticceria (+8)
+    dolciario_kws = ["dolciario", "pasticceria", "bakery", "confectionery", "sweets", "biscuit", "chocolate", "cioccolato", "merendine", "dolci"]
+    if any(k in title_lower for k in dolciario_kws):
+        segments.append("segment_dolciario_pasticceria")
+        
+    # 7. segment_horeca_foodservice_it (+8)
+    horeca_it_kws = ["horeca", "foodservice", "cash & carry", "cash and carry", "ristorazione", "catering"]
+    if is_it and any(k in title_lower for k in horeca_it_kws):
+        segments.append("segment_horeca_foodservice_it")
+        
+    # 8. segment_horeca_foodservice_int (+8)
+    horeca_int_kws = ["foodservice", "horeca", "wholesale", "catering", "cash & carry", "cash and carry"]
+    if not is_it and any(k in title_lower for k in horeca_int_kws):
+        segments.append("segment_horeca_foodservice_int")
+        
+    # 9. segment_grocery_int (+5)
+    grocery_int_kws = ["grocery"]
+    if not is_it and any(k in title_lower for k in grocery_int_kws):
+        segments.append("segment_grocery_int")
+        
+    # 10. segment_sourcing_food (+5)
+    sourcing_kws = [
+        "sourcing manager", "purchasing manager", "procurement manager", "head of buying", "responsabile acquisti",
+        "purchasing/procurement", "sourcing food", "head of buying food"
+    ]
+    if any(k in title_lower for k in sourcing_kws):
+        segments.append("segment_sourcing_food")
+        
+    # 11. segment_topdown_gdo (+5)
+    topdown_kws = [
+        "direttore acquisti", "direttore commerciale", "cpo", "chief procurement", "director purchasing",
+        "director procurement", "head of procurement", "head of buying", "commercial director",
+        "chief commercial officer"
+    ]
+    if any(k in title_lower for k in topdown_kws):
+        segments.append("segment_topdown_gdo")
+        
+    return list(set(segments))
+
+def scy_calculate_segment_bonus(segments):
+    bonuses = {
+        "segment_colazione": 15,
+        "segment_import_specialty": 15,
+        "segment_mdd_pl": 10,
+        "segment_mdd_pl_int": 10,
+        "segment_grocery_drogheria": 10,
+        "segment_dolciario_pasticceria": 8,
+        "segment_horeca_foodservice_it": 8,
+        "segment_horeca_foodservice_int": 8,
+        "segment_grocery_int": 5,
+        "segment_sourcing_food": 5,
+        "segment_topdown_gdo": 5
+    }
+    score_bonus = 0
+    for seg in segments:
+        score_bonus += bonuses.get(seg, 0)
+    return score_bonus
+
 def scy_score_lead(row):
     company_type = scy_classify_company(row["company_name"], row["email"], row["job_title"])
     role_level = scy_classify_role(row["job_title"], company_type)
     category_fit = scy_calculate_category_fit(company_type)
+    
+    country = row.get("country", "")
+    segments = scy_detect_segments(row["job_title"], country)
+    segment_bonus = scy_calculate_segment_bonus(segments)
     
     score = 0
     if company_type == "importer_specialty":
@@ -988,6 +1086,9 @@ def scy_score_lead(row):
     elif role_level == "non_relevant":
         score -= 15
         
+    # Add segment bonus
+    score += segment_bonus
+        
     priority = "C"
     if score >= 40:
         priority = "A"
@@ -998,6 +1099,7 @@ def scy_score_lead(row):
         "company_type": company_type,
         "role_level": role_level,
         "category_fit": category_fit,
+        "segments": ", ".join(segments) if segments else "Nessuno",
         "priority_score": score,
         "priority": priority
     })
@@ -1626,7 +1728,7 @@ with tab_scoring:
             columns_display_order = [
                 "name", "job_title", "company_name", "country", "email", 
                 "validity_score", "company_type", "role_level", "category_fit", 
-                "priority_score", "priority", "linkedin_url"
+                "segments", "priority_score", "priority", "linkedin_url"
             ]
             
             pretty_columns = {
@@ -1639,6 +1741,7 @@ with tab_scoring:
                 "company_type": "Canale Azienda",
                 "role_level": "Livello Ruolo",
                 "category_fit": "Fit Prodotto",
+                "segments": "Segmenti Rilevati",
                 "priority_score": "Score",
                 "priority": "Priorità",
                 "linkedin_url": "Profilo LinkedIn"

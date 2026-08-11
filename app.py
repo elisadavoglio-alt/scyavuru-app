@@ -1645,15 +1645,23 @@ with tab_scoring:
                     return 'background-color: #FADBD8; color: #78281F; font-weight: bold;'
                 return ''
                 
+            # Configurazione colonne per rendere i link LinkedIn cliccabili
+            col_config = {
+                "Profilo LinkedIn": st.column_config.LinkColumn(
+                    "Profilo LinkedIn",
+                    display_text="Apri Profilo 🔗"
+                )
+            }
+            
             try:
                 # pandas mapping support per 1.x e 2.x
                 if hasattr(df_display.style, "map"):
                     styled_df = df_display.style.map(highlight_priority, subset=["Priorità"])
                 else:
                     styled_df = df_display.style.applymap(highlight_priority, subset=["Priorità"])
-                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                st.dataframe(styled_df, use_container_width=True, hide_index=True, column_config=col_config)
             except Exception as se_err:
-                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                st.dataframe(df_display, use_container_width=True, hide_index=True, column_config=col_config)
                 
             # 5. Download e Export
             st.markdown("### 📥 Esporta i Risultati")

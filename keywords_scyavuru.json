@@ -15,7 +15,15 @@
         "Purchasing Manager Food",
         "Procurement Manager Food & Drink",
         "Head of Buying Food",
-        "International Buyer Grocery"
+        "International Buyer Grocery",
+        "Specialty Food Importer",
+        "Fine Food Importer",
+        "Italian Food Importer",
+        "Mediterranean Food Buyer",
+        "Foodservice Buyer",
+        "Foodservice Category Manager",
+        "Horeca Buyer",
+        "Wholesale Buyer Food"
     ],
     "italiano": [
         "Buyer Food",
@@ -36,6 +44,17 @@
         "Responsabile MDD",
         "Buyer Grocery",
         "Direttore Acquisti GDO",
-        "Responsabile Acquisti Drogheria"
+        "Responsabile Acquisti Drogheria",
+        "Buyer Dispensa",
+        "Category Manager Dispensa",
+        "Responsabile Acquisti Dispensa",
+        "Buyer Pasticceria Industriale",
+        "Category Manager Pasticceria Industriale",
+        "Buyer Bakery",
+        "Category Manager Bakery",
+        "Buyer Cash & Carry",
+        "Category Manager Cash & Carry",
+        "Buyer Foodservice",
+        "Category Manager Foodservice"
     ]
 }

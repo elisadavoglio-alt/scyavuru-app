@@ -1068,10 +1068,14 @@ with tab1:
     KEYWORDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "keywords_scyavuru.json")
     default_keywords = {
         "internazionale": [
-            "Food Buyer", "Category Manager Grocery", "Specialty Food Buyer",
-            "Gourmet Food Buyer", "Import Manager Food", "Grocery Buyer",
-            "Purchasing Manager Food", "Buyer Confectionery", "Private Label Category Manager",
-            "Sourcing Manager Food", "International Buyer Grocery", "Fine Food Buyer"
+            "Food Buyer", "Grocery Buyer", "Gourmet Food Buyer", "Fine Food Buyer",
+            "Specialty Food Buyer", "Category Manager Grocery", "Category Manager Confectionery",
+            "Private Label Category Manager", "Import Manager Food", "Import Buyer Food",
+            "Sourcing Manager Food", "Sourcing Manager Grocery", "Purchasing Manager Food",
+            "Procurement Manager Food & Drink", "Head of Buying Food", "International Buyer Grocery",
+            "Specialty Food Importer", "Fine Food Importer", "Italian Food Importer",
+            "Mediterranean Food Buyer", "Foodservice Buyer", "Foodservice Category Manager",
+            "Horeca Buyer", "Wholesale Buyer Food"
         ],
         "italiano": [
             "Buyer Food", "Category Manager Food", "Category Manager Grocery",
@@ -1079,7 +1083,11 @@ with tab1:
             "Buyer Dolciario", "Buyer Specialità", "Buyer Premium Food",
             "Category Manager Dolciario", "Category Manager Private Label", "Responsabile Acquisti HoReCa",
             "Purchasing Manager Food", "Buyer Prima Colazione", "Category Manager Prima Colazione",
-            "Responsabile MDD", "Buyer Grocery", "Direttore Acquisti GDO", "Responsabile Acquisti Drogheria"
+            "Responsabile MDD", "Buyer Grocery", "Direttore Acquisti GDO", "Responsabile Acquisti Drogheria",
+            "Buyer Dispensa", "Category Manager Dispensa", "Responsabile Acquisti Dispensa",
+            "Buyer Pasticceria Industriale", "Category Manager Pasticceria Industriale",
+            "Buyer Bakery", "Category Manager Bakery", "Buyer Cash & Carry",
+            "Category Manager Cash & Carry", "Buyer Foodservice", "Category Manager Foodservice"
         ]
     }
     

@@ -880,7 +880,7 @@ def auto_save_scraping(df, query):
         except Exception as e:
             return f"⚠️ Errore salvataggio automatico server: {e}"
 # --- FUNZIONI DI SCORING & CLASSIFICAZIONE B2B SCYAVURU ---
-def scy_classify_company(company_name):
+def scy_classify_company(company_name, email="", job_title=""):
     gdo_keywords = [
         "dagrofa", "coop", "superbrugsen", "irma", "føtex", "foetex", "salling", 
         "nemlig", "bilka", "netto", "spar", "menu", "meny", "lidl", "aldi", "rema",
@@ -893,7 +893,15 @@ def scy_classify_company(company_name):
     non_food_keywords = ["mediexpert", "nhg", "lego", "licensee", "media", "marketing", "licensing", "software", "it", "tech", "bank", "banca", "real estate", "consulting", "consulenza"]
     
     comp_lower = str(company_name).lower().strip()
+    email_lower = str(email).lower().strip()
+    title_lower = str(job_title).lower().strip()
     
+    # Riconoscimento Coop Denmark o GDO da email o qualifica (per pulire il rumore di scraping)
+    if "coop.dk" in email_lower or "@coop" in email_lower:
+        return "gdo_supermarket"
+    if "coop denmark" in title_lower or "coop danmark" in title_lower or "coop" in comp_lower:
+        return "gdo_supermarket"
+        
     if any(k in comp_lower for k in fs_keywords):
         return "foodservice_wholesaler"
     elif any(k in comp_lower for k in imp_keywords):
@@ -946,7 +954,7 @@ def scy_calculate_category_fit(company_type):
         return "low"
 
 def scy_score_lead(row):
-    company_type = scy_classify_company(row["company_name"])
+    company_type = scy_classify_company(row["company_name"], row["email"], row["job_title"])
     role_level = scy_classify_role(row["job_title"], company_type)
     category_fit = scy_calculate_category_fit(company_type)
     

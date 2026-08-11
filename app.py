@@ -1074,10 +1074,12 @@ with tab1:
             "Sourcing Manager Food", "International Buyer Grocery", "Fine Food Buyer"
         ],
         "italiano": [
-            "Buyer Food", "Category Manager Food", "Responsabile Acquisti Alimentari",
-            "Buyer Drogheria", "Buyer Dolciario", "Category Manager Dolciario",
-            "Responsabile Acquisti GDO", "Buyer Specialità Alimentari", "Purchasing Manager Food",
-            "Responsabile Acquisti HoReCa"
+            "Buyer Food", "Category Manager Food", "Category Manager Grocery",
+            "Responsabile Acquisti Alimentari", "Responsabile Acquisti GDO", "Buyer Drogheria",
+            "Buyer Dolciario", "Buyer Specialità", "Buyer Premium Food",
+            "Category Manager Dolciario", "Category Manager Private Label", "Responsabile Acquisti HoReCa",
+            "Purchasing Manager Food", "Buyer Prima Colazione", "Category Manager Prima Colazione",
+            "Responsabile MDD", "Buyer Grocery", "Direttore Acquisti GDO", "Responsabile Acquisti Drogheria"
         ]
     }
     

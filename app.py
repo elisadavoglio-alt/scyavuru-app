@@ -1380,6 +1380,76 @@ with tab1:
                 st.success(f"Rimossa con successo: {clean_kw}")
                 st.rerun()
                 
+    # Caricamento del database paesi e catene consigliate
+    COUNTRIES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "countries_scyavuru.json")
+    if not os.path.exists(COUNTRIES_FILE):
+        with open(COUNTRIES_FILE, "w", encoding="utf-8") as f:
+            json.dump({}, f, indent=4)
+            
+    with open(COUNTRIES_FILE, "r", encoding="utf-8") as f:
+        countries_data = json.load(f)
+        
+    with st.expander("⚙️ Gestisci Catene e Paesi (Aggiungi/Rimuovi)", expanded=False):
+        st.markdown("##### ➕ Aggiungi o Modifica un Paese")
+        col_c1, col_c2 = st.columns(2)
+        new_country_title = col_c1.text_input("Nome Paese (con bandiera / titolo expander):", placeholder="es: 🇵🇹 PORTOGALLO", key="new_country_title_input")
+        new_country_loc = col_c2.text_input("Valore Location per ricerca (in inglese):", placeholder="es: Portugal", key="new_country_loc_input")
+        
+        if st.button("Salva Paese", key="btn_add_country_scy"):
+            if new_country_title.strip() and new_country_loc.strip():
+                title = new_country_title.strip()
+                loc = new_country_loc.strip()
+                if title not in countries_data:
+                    countries_data[title] = {"location": loc, "chains": []}
+                else:
+                    countries_data[title]["location"] = loc
+                with open(COUNTRIES_FILE, "w", encoding="utf-8") as f:
+                    json.dump(countries_data, f, indent=4)
+                st.success(f"Paese salvato con successo: {title}")
+                st.rerun()
+
+        st.markdown("---")
+        st.markdown("##### 🏢 Gestisci Catene per Paese")
+        selected_c_manage = st.selectbox("Seleziona Paese per gestire catene:", ["-- Seleziona --"] + list(countries_data.keys()), key="select_country_manage")
+        
+        if selected_c_manage != "-- Seleziona --":
+            st.markdown(f"**Catene attuali per {selected_c_manage}:** {', '.join(countries_data[selected_c_manage].get('chains', [])) or '*Nessuna catena*'}")
+            
+            col_ch1, col_ch2 = st.columns([3, 1])
+            new_chain_name = col_ch1.text_input("Aggiungi Catena:", placeholder="es: Pingo Doce", key="new_chain_name_input")
+            if col_ch2.button("Aggiungi", key="btn_add_chain"):
+                if new_chain_name.strip():
+                    chain = new_chain_name.strip()
+                    if chain not in countries_data[selected_c_manage]["chains"]:
+                        countries_data[selected_c_manage]["chains"].append(chain)
+                        with open(COUNTRIES_FILE, "w", encoding="utf-8") as f:
+                            json.dump(countries_data, f, indent=4)
+                        st.success(f"Aggiunta catena '{chain}' a {selected_c_manage}")
+                        st.rerun()
+                        
+            # Rimuovi catena
+            chains_to_remove = countries_data[selected_c_manage].get("chains", [])
+            if chains_to_remove:
+                chain_to_del = st.selectbox("Rimuovi Catena:", ["-- Seleziona --"] + chains_to_remove, key="select_chain_remove")
+                if st.button("Rimuovi Catena Selezionata", key="btn_remove_chain"):
+                    if chain_to_del != "-- Seleziona --":
+                        countries_data[selected_c_manage]["chains"].remove(chain_to_del)
+                        with open(COUNTRIES_FILE, "w", encoding="utf-8") as f:
+                            json.dump(countries_data, f, indent=4)
+                        st.success(f"Rimossa catena '{chain_to_del}' da {selected_c_manage}")
+                        st.rerun()
+
+        st.markdown("---")
+        st.markdown("##### 🗑️ Rimuovi Intero Paese")
+        country_to_del = st.selectbox("Seleziona Paese da Rimuovere:", ["-- Seleziona --"] + list(countries_data.keys()), key="select_country_delete")
+        if st.button("Rimuovi Paese", key="btn_delete_country"):
+            if country_to_del != "-- Seleziona --":
+                del countries_data[country_to_del]
+                with open(COUNTRIES_FILE, "w", encoding="utf-8") as f:
+                    json.dump(countries_data, f, indent=4)
+                st.success(f"Rimosso paese '{country_to_del}' con tutte le sue catene.")
+                st.rerun()
+                
     # Inizializza session_state per azienda selezionata
     if "selected_company" not in st.session_state:
         st.session_state["selected_company"] = ""
@@ -1409,100 +1479,18 @@ with tab1:
         
     st.markdown("### 🏢 Catene & Importatori Consigliati per Paese (Clicca per selezionare più Aziende)")
     
-    with st.expander("🇦🇪 EMIRATI ARABI UNITI (EAU / Dubai & Abu Dhabi)", expanded=False):
-        eau_chains = ["Spinneys", "Waitrose UAE", "Choithrams", "Grandiose Supermarket", "Lulu Hypermarket", "Jones the Grocer"]
-        cols_eau = st.columns(3)
-        for idx, co in enumerate(eau_chains):
-            if cols_eau[idx % 3].button(co, key=f"btn_co_eau_{idx}"):
-                add_company_to_selection(co, "United Arab Emirates")
-
-    with st.expander("🇬🇧 REGNO UNITO (UK)", expanded=False):
-        uk_chains = ["Waitrose & Partners", "Marks & Spencer", "Sainsbury's", "Harrods Food Hall", "Selfridges Food Hall", "Ocado"]
-        cols_uk = st.columns(3)
-        for idx, co in enumerate(uk_chains):
-            if cols_uk[idx % 3].button(co, key=f"btn_co_uk_{idx}"):
-                add_company_to_selection(co, "United Kingdom")
-
-    with st.expander("🇩🇪 GERMANIA", expanded=False):
-        de_chains = ["Edeka", "Rewe Group", "Käfer Feinkost", "Alnatura", "Galeria Markthalle"]
-        cols_de = st.columns(3)
-        for idx, co in enumerate(de_chains):
-            if cols_de[idx % 3].button(co, key=f"btn_co_de_{idx}"):
-                add_company_to_selection(co, "Germany")
-
-    with st.expander("🇫🇷 FRANCIA", expanded=False):
-        fr_chains = ["La Grande Épicerie de Paris", "Monoprix", "Lafayette Gourmet", "Carrefour France"]
-        cols_fr = st.columns(2)
-        for idx, co in enumerate(fr_chains):
-            if cols_fr[idx % 2].button(co, key=f"btn_co_fr_{idx}"):
-                add_company_to_selection(co, "France")
-
-    with st.expander("🇩🇰 DANIMARCA", expanded=False):
-        dk_chains = ["Salling Group", "Coop Danmark", "Dagrofa", "Magasin du Nord"]
-        cols_dk = st.columns(2)
-        for idx, co in enumerate(dk_chains):
-            if cols_dk[idx % 2].button(co, key=f"btn_co_dk_{idx}"):
-                add_company_to_selection(co, "Denmark")
-
-    with st.expander("🇨🇭 SVIZZERA", expanded=False):
-        ch_chains = ["Globus Delicatessa", "Manor Food", "Coop Schweiz", "Migros"]
-        cols_ch = st.columns(2)
-        for idx, co in enumerate(ch_chains):
-            if cols_ch[idx % 2].button(co, key=f"btn_co_ch_{idx}"):
-                add_company_to_selection(co, "Switzerland")
-
-    with st.expander("🇯🇵 GIAPPONE", expanded=False):
-        jp_chains = ["Seijo Ishii", "Isetan Mitsukoshi", "Dean & Deluca Japan", "Takashimaya"]
-        cols_jp = st.columns(2)
-        for idx, co in enumerate(jp_chains):
-            if cols_jp[idx % 2].button(co, key=f"btn_co_jp_{idx}"):
-                add_company_to_selection(co, "Japan")
-
-    with st.expander("🇸🇦 ARABIA SAUDITA", expanded=False):
-        ksa_chains = ["Danube Supermarket", "Manuel Market", "Tamimi Markets"]
-        cols_ksa = st.columns(3)
-        for idx, co in enumerate(ksa_chains):
-            if cols_ksa[idx % 3].button(co, key=f"btn_co_ksa_{idx}"):
-                add_company_to_selection(co, "Saudi Arabia")
-
-    with st.expander("🇳🇱 🇧🇪 BENELUX (Paesi Bassi & Belgio)", expanded=False):
-        bene_chains = ["Albert Heijn", "Rob The Gourmet Market", "Delhaize", "Jumbo Supermarkten"]
-        cols_bene = st.columns(2)
-        for idx, co in enumerate(bene_chains):
-            if cols_bene[idx % 2].button(co, key=f"btn_co_bene_{idx}"):
-                add_company_to_selection(co, "Netherlands")
-
-    with st.expander("🇨🇦 CANADA", expanded=False):
-        ca_chains = ["Pusateri's Fine Foods", "McEwan Fine Foods", "Eataly Toronto", "Loblaws", "Sobeys", "Metro", "Safeway", "IGA", "No Frills", "Food Basics", "FreshCo", "Super C", "Real Canadian Superstore", "Save-On-Foods"]
-        cols_ca = st.columns(3)
-        for idx, co in enumerate(ca_chains):
-            if cols_ca[idx % 3].button(co, key=f"btn_co_ca_{idx}"):
-                add_company_to_selection(co, "Canada")
-
-    with st.expander("🇵🇹 PORTOGALLO", expanded=False):
-        pt_chains = ["Sonae (Continente)", "Pingo Doce", "Auchan Portugal", "Makro Portugal", "Minipreço", "Intermarché Portugal"]
-        cols_pt = st.columns(3)
-        for idx, co in enumerate(pt_chains):
-            if cols_pt[idx % 3].button(co, key=f"btn_co_pt_{idx}"):
-                add_company_to_selection(co, "Portugal")
-
-    with st.expander("🇺🇸 STATI UNITI (USA)", expanded=False):
-        usa_gourmet = [
-            "Whole Foods Market", "Trader Joe's", "Eataly USA", "Wegmans",
-            "The Fresh Market", "Sprouts Farmers Market", "Bristol Farms", "Dean & DeLuca",
-            "Kroger", "Albertsons", "Publix", "Atalanta Corporation", "KeHE Distributors", "UNFI"
-        ]
-        cols_ug = st.columns(3)
-        for idx, co in enumerate(usa_gourmet):
-            if cols_ug[idx % 3].button(co, key=f"btn_co_ug_{idx}"):
-                add_company_to_selection(co, "United States")
-
-    with st.expander("🇮🇹 ITALIA — Supermercati & GDO (Esselunga, Coop, Conad...)", expanded=False):
-        it_gdo = ["Esselunga", "Coop Italia", "Conad", "Carrefour Italia", "Selex", "Pam Panorama", "Eurospin", "MD S.p.A."]
-        cols_itg = st.columns(3)
-        for idx, co in enumerate(it_gdo):
-            if cols_itg[idx % 3].button(co, key=f"btn_co_itg_{idx}"):
-                add_company_to_selection(co, "Italy")
+    for country_title, c_info in countries_data.items():
+        with st.expander(country_title, expanded=False):
+            chains = c_info.get("chains", [])
+            location_val = c_info.get("location", "")
+            if chains:
+                cols = st.columns(3)
+                for idx, co in enumerate(chains):
+                    safe_key = "".join([c if c.isalnum() else "_" for c in country_title])
+                    if cols[idx % 3].button(co, key=f"btn_co_{safe_key}_{idx}"):
+                        add_company_to_selection(co, location_val)
+            else:
+                st.info("Nessuna catena registrata per questo paese.")
 
     st.markdown("---")
     

@@ -1,0 +1,54 @@
+{
+  "🇦🇪 EMIRATI ARABI UNITI (EAU / Dubai & Abu Dhabi)": {
+    "location": "United Arab Emirates",
+    "chains": ["Spinneys", "Waitrose UAE", "Choithrams", "Grandiose Supermarket", "Lulu Hypermarket", "Jones the Grocer"]
+  },
+  "🇬🇧 REGNO UNITO (UK)": {
+    "location": "United Kingdom",
+    "chains": ["Waitrose & Partners", "Marks & Spencer", "Sainsbury's", "Harrods Food Hall", "Selfridges Food Hall", "Ocado"]
+  },
+  "🇩🇪 GERMANIA": {
+    "location": "Germany",
+    "chains": ["Edeka", "Rewe Group", "Käfer Feinkost", "Alnatura", "Galeria Markthalle"]
+  },
+  "🇫🇷 FRANCIA": {
+    "location": "France",
+    "chains": ["La Grande Épicerie de Paris", "Monoprix", "Lafayette Gourmet", "Carrefour France"]
+  },
+  "🇩🇰 DANIMARCA": {
+    "location": "Denmark",
+    "chains": ["Salling Group", "Coop Danmark", "Dagrofa", "Magasin du Nord"]
+  },
+  "🇨🇭 SVIZZERA": {
+    "location": "Switzerland",
+    "chains": ["Globus Delicatessa", "Manor Food", "Coop Schweiz", "Migros"]
+  },
+  "🇯🇵 GIAPPONE": {
+    "location": "Japan",
+    "chains": ["Seijo Ishii", "Isetan Mitsukoshi", "Dean & Deluca Japan", "Takashimaya"]
+  },
+  "🇸🇦 ARABIA SAUDITA": {
+    "location": "Saudi Arabia",
+    "chains": ["Danube Supermarket", "Manuel Market", "Tamimi Markets"]
+  },
+  "🇳🇱 🇧🇪 BENELUX (Paesi Bassi & Belgio)": {
+    "location": "Netherlands",
+    "chains": ["Albert Heijn", "Rob The Gourmet Market", "Delhaize", "Jumbo Supermarkten"]
+  },
+  "🇨🇦 CANADA": {
+    "location": "Canada",
+    "chains": ["Pusateri's Fine Foods", "McEwan Fine Foods", "Eataly Toronto", "Loblaws", "Sobeys", "Metro", "Safeway", "IGA", "No Frills", "Food Basics", "FreshCo", "Super C", "Real Canadian Superstore", "Save-On-Foods"]
+  },
+  "🇵🇹 PORTOGALLO": {
+    "location": "Portugal",
+    "chains": ["Sonae (Continente)", "Pingo Doce", "Auchan Portugal", "Makro Portugal", "Minipreço", "Intermarché Portugal"]
+  },
+  "🇺🇸 STATI UNITI (USA)": {
+    "location": "United States",
+    "chains": ["Whole Foods Market", "Trader Joe's", "Eataly USA", "Wegmans", "The Fresh Market", "Sprouts Farmers Market", "Bristol Farms", "Dean & DeLuca", "Kroger", "Albertsons", "Publix", "Atalanta Corporation", "KeHE Distributors", "UNFI"]
+  },
+  "🇮🇹 ITALIA — Supermercati & GDO (Esselunga, Coop, Conad...)": {
+    "location": "Italy",
+    "chains": ["Esselunga", "Coop Italia", "Conad", "Carrefour Italia", "Selex", "Pam Panorama", "Eurospin", "MD S.p.A."]
+  }
+}

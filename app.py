@@ -203,6 +203,107 @@ def _build_excel_scraping(df: pd.DataFrame, ruolo: str) -> io.BytesIO:
     output.seek(0)
     return output
 
+def load_scraped_archive():
+    import glob
+    scraped_urls = set()
+    
+    paths_to_check = [
+        "/Users/elisadavoglio/Desktop/Scyavuru_Scraping_Exports/*.xlsx",
+        "data/exports/*.xlsx"
+    ]
+    
+    for path_pattern in paths_to_check:
+        for file_path in glob.glob(path_pattern):
+            try:
+                df = pd.read_excel(file_path)
+                for col in ["Link Profilo", "linkedin_url", "Profilo", "profileUrl", "linkedin_profile_url"]:
+                    if col in df.columns:
+                        urls = df[col].dropna().astype(str).tolist()
+                        for url in urls:
+                            clean_url = url.strip().rstrip('/')
+                            if clean_url:
+                                scraped_urls.add(clean_url)
+            except Exception:
+                pass
+                
+    return scraped_urls
+
+def _build_excel_scoring(df: pd.DataFrame) -> io.BytesIO:
+    """Genera un Excel formattato per la tab Scoring: intestazioni in grassetto,
+    larghezze auto, link LinkedIn cliccabili, e colori per la priorità (A = verde chiaro, B = giallo chiaro)."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Lead_Scoring"
+
+    # Stili
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="2E4053", end_color="2E4053", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    border = Border(
+        left=Side(style="thin", color="BDBDBD"),
+        right=Side(style="thin", color="BDBDBD"),
+        top=Side(style="thin", color="BDBDBD"),
+        bottom=Side(style="thin", color="BDBDBD")
+    )
+
+    fill_priority_a = PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid")  # verde
+    fill_priority_b = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid")  # giallo
+    fill_priority_c = PatternFill(start_color="F2F3F4", end_color="F2F3F4", fill_type="solid")  # grigio
+
+    cols = list(df.columns)
+    priority_col_idx = cols.index("Priorità") + 1 if "Priorità" in cols else None
+    link_col_idx = cols.index("Profilo LinkedIn") + 1 if "Profilo LinkedIn" in cols else None
+
+    # Intestazioni
+    ws.row_dimensions[1].height = 30
+    for c_idx, col_name in enumerate(cols, 1):
+        cell = ws.cell(row=1, column=c_idx, value=col_name)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = border
+
+    # Dati
+    for r_idx, row_vals in enumerate(df.values.tolist(), 2):
+        priority_val = ""
+        if priority_col_idx:
+            priority_val = str(row_vals[priority_col_idx - 1])
+
+        for c_idx in range(1, len(cols) + 1):
+            value = row_vals[c_idx - 1]
+            cell = ws.cell(row=r_idx, column=c_idx, value=value)
+            cell.alignment = Alignment(vertical="center", wrap_text=False)
+            cell.border = border
+
+            # Colore per priorità
+            if priority_col_idx and c_idx == priority_col_idx:
+                if priority_val == "A":
+                    cell.fill = fill_priority_a
+                elif priority_val == "B":
+                    cell.fill = fill_priority_b
+                else:
+                    cell.fill = fill_priority_c
+
+            # Link cliccabile per profilo LinkedIn
+            if link_col_idx and c_idx == link_col_idx and value:
+                cell.value = value
+                cell.hyperlink = value
+                cell.font = Font(color="1155CC", underline="single")
+
+    # Larghezze automatiche (cap a 50)
+    for c_idx, col_name in enumerate(cols, 1):
+        col_data = [str(col_name)] + [str(v) if v else "" for v in df.iloc[:, c_idx - 1]]
+        max_len = min(max(len(s) for s in col_data), 50)
+        ws.column_dimensions[get_column_letter(c_idx)].width = max_len + 2
+
+    # Freeze prima riga
+    ws.freeze_panes = "A2"
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
 # --- FILTRI BOOLEANI: funzione riutilizzabile a livello modulo ---
 def _apply_boolean_filters(df: pd.DataFrame, must_include: str, must_exclude: str) -> pd.DataFrame:
     """Filtra il dataframe con logica AND/OR/NOT sui campi Qualifica e Azienda.
@@ -1448,6 +1549,7 @@ with tab1:
                 help="Profili che contengono queste parole vengono esclusi."
             )
 
+    exclude_previously_scraped = st.checkbox("🔄 Escludi contatti già estratti in precedenza (Archivio)", value=True)
     st.info("📧 **Ricerca email attiva** — SMTP-verificata via HarvestAPI. Costo extra: ~$0.01/profilo.")
 
     if st.button("🛰️ Avvia Scraping", type="primary"):
@@ -1458,10 +1560,19 @@ with tab1:
                     df_scraping = pd.DataFrame(risultati)
                     tot_grezzo = len(df_scraping)
 
-                    # --- APPLICA FILTRI BOOLEANI (funzione definita a livello modulo) ---
+                    # --- FILTRA DUPLICATI DALL'ARCHIVIO ---
+                    tot_archive_filtered = 0
+                    if exclude_previously_scraped and "Link Profilo" in df_scraping.columns:
+                        archive_urls = load_scraped_archive()
+                        df_scraping["clean_url"] = df_scraping["Link Profilo"].astype(str).str.strip().str.rstrip('/')
+                        df_filtrato_archive = df_scraping[~df_scraping["clean_url"].isin(archive_urls)].copy()
+                        tot_archive_filtered = len(df_scraping) - len(df_filtrato_archive)
+                        df_scraping = df_filtrato_archive.drop(columns=["clean_url"])
+
+                    # --- APPLICA FILTRI BOOLEANI ---
                     df_filtrato = _apply_boolean_filters(df_scraping, must_include_raw, must_exclude_raw)
                     tot_filtrato = len(df_filtrato)
-                    eliminati = tot_grezzo - tot_filtrato
+                    eliminati = len(df_scraping) - tot_filtrato
 
                     # --- STATISTICHE ---
                     trovate = (df_filtrato["Email"] != "Non trovata").sum() if "Email" in df_filtrato.columns else 0
@@ -1470,9 +1581,12 @@ with tab1:
 
                     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
                     col_s1.metric("👥 Profili grezzi", tot_grezzo)
-                    col_s2.metric("✅ Dopo filtri", tot_filtrato, delta=f"-{eliminati}" if eliminati else None)
+                    col_s2.metric("✅ Dopo filtri", tot_filtrato, delta=f"-{eliminati + tot_archive_filtered}" if (eliminati + tot_archive_filtered) else None)
                     col_s3.metric("📧 Email trovate", f"{trovate}/{tot_filtrato}")
                     col_s4.metric("🟢 Apify / 🟠 Hunter", f"{da_apify} / {da_hunter}")
+
+                    if tot_archive_filtered > 0:
+                        st.info(f"🔄 **Filtro Archivio**: Rilevati e rimossi **{tot_archive_filtered}** contatti già presenti nei file salvati sul Desktop/Server.")
 
                     if eliminati > 0:
                         st.caption(f"🔬 Filtri booleani attivi: rimossi {eliminati} profili fuori target.")
@@ -1836,29 +1950,30 @@ with tab_scoring:
                 st.dataframe(df_display, use_container_width=True, hide_index=True, column_config=col_config)
                 
             # 5. Download e Export
-            st.markdown("### 📥 Esporta i Risultati")
+            st.markdown("### 📥 Esporta i Risultati (Excel con Link Cliccabili 🔗)")
             
             col_d1, col_d2 = st.columns(2)
             
             with col_d1:
                 df_priority_a = filtered_scored[filtered_scored["priority"] == "A"]
-                csv_a = df_priority_a.to_csv(index=False).encode('utf-8')
+                df_a_display = df_priority_a[columns_display_order].rename(columns=pretty_columns)
+                excel_a = _build_excel_scoring(df_a_display)
                 st.download_button(
-                    label="🔥 Scarica SOLO Priority A (CSV)",
-                    data=csv_a,
-                    file_name="Scyavuru_Lead_Priority_A.csv",
-                    mime="text/csv",
+                    label="🔥 Scarica SOLO Priority A (Excel)",
+                    data=excel_a,
+                    file_name="Scyavuru_Lead_Priority_A.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary",
                     use_container_width=True
                 )
                 
             with col_d2:
-                csv_filtered = filtered_scored.to_csv(index=False).encode('utf-8')
+                excel_filtered = _build_excel_scoring(df_display)
                 st.download_button(
-                    label="📂 Scarica Database Filtrato Corrente (CSV)",
-                    data=csv_filtered,
-                    file_name="Scyavuru_Lead_Database_Filtrato.csv",
-                    mime="text/csv",
+                    label="📂 Scarica Database Filtrato Corrente (Excel)",
+                    data=excel_filtered,
+                    file_name="Scyavuru_Lead_Database_Filtrato.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
                 

@@ -1266,107 +1266,108 @@ with tab1:
     # Inizializza session_state per azienda selezionata
     if "selected_company" not in st.session_state:
         st.session_state["selected_company"] = ""
+
+    def clean_company_search_name(name):
+        import re
+        m = re.search(r'\((.*?)\)', name)
+        if m:
+            clean = m.group(1).strip()
+        else:
+            clean = name.strip()
+        if " " in clean and not (clean.startswith('"') and clean.endswith('"')):
+            clean = f'"{clean}"'
+        return clean
+
+    def add_company_to_selection(co_name, country_name):
+        clean_name = clean_company_search_name(co_name)
+        current = st.session_state.get("selected_company", "").strip()
+        if current:
+            # Evita duplicati
+            if clean_name not in current:
+                st.session_state["selected_company"] = f"{current} OR {clean_name}"
+        else:
+            st.session_state["selected_company"] = clean_name
+        st.session_state["location_input_val"] = country_name
+        st.rerun()
         
-    st.markdown("### 🏢 Catene & Importatori Consigliati per Paese (Clicca per selezionare l'Azienda)")
+    st.markdown("### 🏢 Catene & Importatori Consigliati per Paese (Clicca per selezionare più Aziende)")
     
     with st.expander("🇦🇪 EMIRATI ARABI UNITI (EAU / Dubai & Abu Dhabi)", expanded=False):
         eau_chains = ["Spinneys", "Waitrose UAE", "Choithrams", "Grandiose Supermarket", "Lulu Hypermarket", "Jones the Grocer"]
         cols_eau = st.columns(3)
         for idx, co in enumerate(eau_chains):
             if cols_eau[idx % 3].button(co, key=f"btn_co_eau_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "United Arab Emirates"
-                st.rerun()
+                add_company_to_selection(co, "United Arab Emirates")
 
     with st.expander("🇬🇧 REGNO UNITO (UK)", expanded=False):
         uk_chains = ["Waitrose & Partners", "Marks & Spencer", "Sainsbury's", "Harrods Food Hall", "Selfridges Food Hall", "Ocado"]
         cols_uk = st.columns(3)
         for idx, co in enumerate(uk_chains):
             if cols_uk[idx % 3].button(co, key=f"btn_co_uk_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "United Kingdom"
-                st.rerun()
+                add_company_to_selection(co, "United Kingdom")
 
     with st.expander("🇩🇪 GERMANIA", expanded=False):
         de_chains = ["Edeka", "Rewe Group", "Käfer Feinkost", "Alnatura", "Galeria Markthalle"]
         cols_de = st.columns(3)
         for idx, co in enumerate(de_chains):
             if cols_de[idx % 3].button(co, key=f"btn_co_de_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "Germany"
-                st.rerun()
+                add_company_to_selection(co, "Germany")
 
     with st.expander("🇫🇷 FRANCIA", expanded=False):
         fr_chains = ["La Grande Épicerie de Paris", "Monoprix", "Lafayette Gourmet", "Carrefour France"]
         cols_fr = st.columns(2)
         for idx, co in enumerate(fr_chains):
             if cols_fr[idx % 2].button(co, key=f"btn_co_fr_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "France"
-                st.rerun()
+                add_company_to_selection(co, "France")
 
     with st.expander("🇩🇰 DANIMARCA", expanded=False):
         dk_chains = ["Salling Group", "Coop Danmark", "Dagrofa", "Magasin du Nord"]
         cols_dk = st.columns(2)
         for idx, co in enumerate(dk_chains):
             if cols_dk[idx % 2].button(co, key=f"btn_co_dk_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "Denmark"
-                st.rerun()
+                add_company_to_selection(co, "Denmark")
 
     with st.expander("🇨🇭 SVIZZERA", expanded=False):
         ch_chains = ["Globus Delicatessa", "Manor Food", "Coop Schweiz", "Migros"]
         cols_ch = st.columns(2)
         for idx, co in enumerate(ch_chains):
             if cols_ch[idx % 2].button(co, key=f"btn_co_ch_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "Switzerland"
-                st.rerun()
+                add_company_to_selection(co, "Switzerland")
 
     with st.expander("🇯🇵 GIAPPONE", expanded=False):
         jp_chains = ["Seijo Ishii", "Isetan Mitsukoshi", "Dean & Deluca Japan", "Takashimaya"]
         cols_jp = st.columns(2)
         for idx, co in enumerate(jp_chains):
             if cols_jp[idx % 2].button(co, key=f"btn_co_jp_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "Japan"
-                st.rerun()
+                add_company_to_selection(co, "Japan")
 
     with st.expander("🇸🇦 ARABIA SAUDITA", expanded=False):
         ksa_chains = ["Danube Supermarket", "Manuel Market", "Tamimi Markets"]
         cols_ksa = st.columns(3)
         for idx, co in enumerate(ksa_chains):
             if cols_ksa[idx % 3].button(co, key=f"btn_co_ksa_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "Saudi Arabia"
-                st.rerun()
+                add_company_to_selection(co, "Saudi Arabia")
 
     with st.expander("🇳🇱 🇧🇪 BENELUX (Paesi Bassi & Belgio)", expanded=False):
         bene_chains = ["Albert Heijn", "Rob The Gourmet Market", "Delhaize", "Jumbo Supermarkten"]
         cols_bene = st.columns(2)
         for idx, co in enumerate(bene_chains):
             if cols_bene[idx % 2].button(co, key=f"btn_co_bene_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "Netherlands"
-                st.rerun()
+                add_company_to_selection(co, "Netherlands")
 
     with st.expander("🇨🇦 CANADA", expanded=False):
         ca_chains = ["Pusateri's Fine Foods", "McEwan Fine Foods", "Eataly Toronto", "Loblaws", "Sobeys", "Metro", "Safeway", "IGA", "No Frills", "Food Basics", "FreshCo", "Super C", "Real Canadian Superstore", "Save-On-Foods"]
         cols_ca = st.columns(3)
         for idx, co in enumerate(ca_chains):
             if cols_ca[idx % 3].button(co, key=f"btn_co_ca_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "Canada"
-                st.rerun()
+                add_company_to_selection(co, "Canada")
 
     with st.expander("🇵🇹 PORTOGALLO", expanded=False):
         pt_chains = ["Sonae (Continente)", "Pingo Doce", "Auchan Portugal", "Makro Portugal", "Minipreço", "Intermarché Portugal"]
         cols_pt = st.columns(3)
         for idx, co in enumerate(pt_chains):
             if cols_pt[idx % 3].button(co, key=f"btn_co_pt_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "Portugal"
-                st.rerun()
+                add_company_to_selection(co, "Portugal")
 
     with st.expander("🇺🇸 STATI UNITI (USA)", expanded=False):
         usa_gourmet = [
@@ -1377,18 +1378,14 @@ with tab1:
         cols_ug = st.columns(3)
         for idx, co in enumerate(usa_gourmet):
             if cols_ug[idx % 3].button(co, key=f"btn_co_ug_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "United States"
-                st.rerun()
+                add_company_to_selection(co, "United States")
 
     with st.expander("🇮🇹 ITALIA — Supermercati & GDO (Esselunga, Coop, Conad...)", expanded=False):
         it_gdo = ["Esselunga", "Coop Italia", "Conad", "Carrefour Italia", "Selex", "Pam Panorama", "Eurospin", "MD S.p.A."]
         cols_itg = st.columns(3)
         for idx, co in enumerate(it_gdo):
             if cols_itg[idx % 3].button(co, key=f"btn_co_itg_{idx}"):
-                st.session_state["selected_company"] = co
-                st.session_state["location_input_val"] = "Italy"
-                st.rerun()
+                add_company_to_selection(co, "Italy")
 
     st.markdown("---")
     

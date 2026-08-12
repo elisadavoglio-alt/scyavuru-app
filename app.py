@@ -1656,6 +1656,43 @@ with tab_scoring:
         "e calcolare automaticamente il loro livello di priorità per Scyavuru."
     )
     
+    with st.expander("📖 Legenda e Logica di Calcolo del Priority Score", expanded=False):
+        st.markdown("""
+        Il **Priority Score** è calcolato sommando il **Punteggio Base** (profilo e canale) con i **Bonus di Segmentazione** (parole chiave rilevate nella qualifica del contatto).
+        
+        ### 1️⃣ Punteggio Base (Fino a un massimo di +60 punti)
+        *   **Tipo Canale / Azienda (`company_type`)**:
+            *   Importatori Specialità Gourmet: `+30`
+            *   Grossisti Foodservice / Catering: `+25`
+            *   GDO / Supermercati: `+20`
+            *   Discount / Convenience Store: `+10`
+            *   Settori Non-Food / Enti Pubblici: `-15`
+        *   **Fit Prodotto (`category_fit`)**:
+            *   Alto (Importatori, Foodservice): `+15`
+            *   Medio (GDO, Discount): `+5`
+            *   Basso (Altro): `0`
+        *   **Livello del Ruolo (`role_level`)**:
+            *   Category Buyer (Acquirente specifico): `+15`
+            *   Strategico (Direttori, C-Level): `+10`
+            *   Operativo: `+5`
+            *   Non pertinente (es. Risorse Umane, Assistenti): `-15`
+            
+        ### 2️⃣ Bonus di Segmento (Parole chiave rilevate nel Job Title)
+        Se la qualifica contiene parole chiave di nicchie calde per Scyavuru, si aggiungono i seguenti bonus (cumulabili):
+        *   **Prima Colazione** (Confetture, Spalmabili, Confetture, Marmellate): `+15`
+        *   **Importatori Gourmet / Specialty**: `+15`
+        *   **Private Label / MDD** (Marca del Distributore): `+10`
+        *   **Grocery / Drogheria / Dispensa**: `+10` (in Italia) o `+5` (all'Estero)
+        *   **Dolciario / Pasticceria / Bakery**: `+8`
+        *   **HoReCa / Foodservice / Cash & Carry**: `+8`
+        *   **Direttori Acquisti / Sourcing**: `+5`
+        
+        ### 🚦 Livelli di Priorità (Priority A, B, C)
+        *   🟢 **Priority A (Caldissimi 🔥)**: Punteggio $\ge 40$. I buyer ideali (GDO, Foodservice, Specialità Gourmet).
+        *   🟡 **Priority B (Interessanti ⚡)**: Punteggio tra `20` e `39`. Contatti in canali intermedi da tenere radar.
+        *   🔴 **Priority C (Basso Target ❄️)**: Punteggio `< 20`. Profili fuori target o ruoli non pertinenti.
+        """)
+    
     uploaded_scoring_file = st.file_uploader(
         "Carica file contatti GDO / Export (Excel o CSV)",
         type=["xlsx", "csv"],

@@ -122,35 +122,44 @@ def extract_dataset_id(run) -> str:
 
 # --- UTILITY EXCEL: COSTRUISCE EXCEL FORMATTATO PER ESTRAZIONE ---
 def _build_excel_scraping(df: pd.DataFrame, ruolo: str) -> io.BytesIO:
-    """Genera un Excel formattato con: intestazioni in grassetto, larghezze auto,
-    link LinkedIn cliccabili, colore verde per email Apify, arancio per Hunter,
-    grigio per 'Non trovata'."""
+    """Genera un Excel formattato con estetica premium: font Segoe UI, righe alternate,
+    link LinkedIn cliccabili, colori email e allineamento curato."""
     wb = Workbook()
     ws = wb.active
     ws.title = f"Estrazione_{ruolo[:20]}"
 
-    # Stili
-    header_font = Font(bold=True, color="FFFFFF", size=11)
-    header_fill = PatternFill(start_color="2E4053", end_color="2E4053", fill_type="solid")
+    # Stili Font e Allineamenti
+    font_family = "Segoe UI"
+    header_font = Font(name=font_family, bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid") # Slate 800 premium
     header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    
+    data_font = Font(name=font_family, size=10, color="1E293B")
+    link_font = Font(name=font_family, size=10, color="1B4F72", underline="single")
+    
+    # Bordi leggeri (estetica pulita)
     border = Border(
-        left=Side(style="thin", color="BDBDBD"),
-        right=Side(style="thin", color="BDBDBD"),
-        top=Side(style="thin", color="BDBDBD"),
-        bottom=Side(style="thin", color="BDBDBD")
+        left=Side(style="thin", color="E2E8F0"),
+        right=Side(style="thin", color="E2E8F0"),
+        top=Side(style="thin", color="E2E8F0"),
+        bottom=Side(style="thin", color="E2E8F0")
     )
 
-    fill_apify  = PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid")   # verde
-    fill_hunter = PatternFill(start_color="FDEBD0", end_color="FDEBD0", fill_type="solid")   # arancio
-    fill_none   = PatternFill(start_color="F2F3F4", end_color="F2F3F4", fill_type="solid")   # grigio
+    # Colori email (tonalità pastello soft)
+    fill_apify  = PatternFill(start_color="E2F0D9", end_color="E2F0D9", fill_type="solid")   # verde salvia
+    fill_hunter = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid")   # giallo paglierino
+    fill_none   = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")   # grigio neutro
+    
+    # Zebra striping per le righe alternate
+    fill_zebra  = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")   # Slate 50 ultra-soft
 
     cols = list(df.columns)
     email_col_idx = cols.index("Email") + 1 if "Email" in cols else None
     fonte_col_idx = cols.index("Fonte Email") + 1 if "Fonte Email" in cols else None
     link_col_idx  = cols.index("Link Profilo") + 1 if "Link Profilo" in cols else None
 
-    # Intestazioni
-    ws.row_dimensions[1].height = 30
+    # Intestazioni (altezza 28pt)
+    ws.row_dimensions[1].height = 28
     for c_idx, col_name in enumerate(cols, 1):
         cell = ws.cell(row=1, column=c_idx, value=col_name)
         cell.font = header_font
@@ -158,36 +167,52 @@ def _build_excel_scraping(df: pd.DataFrame, ruolo: str) -> io.BytesIO:
         cell.alignment = header_align
         cell.border = border
 
-    # Dati
+    # Dati (altezza 20pt)
     for r_idx, row_vals in enumerate(df.values.tolist(), 2):
+        ws.row_dimensions[r_idx].height = 20
         fonte_val = ""
         if fonte_col_idx:
             fonte_val = str(row_vals[fonte_col_idx - 1])
 
+        # Alternanza righe per leggibilità
+        is_even = (r_idx % 2 == 0)
+        row_fill = fill_zebra if is_even else None
+
         for c_idx in range(1, len(cols) + 1):
             value = row_vals[c_idx - 1]
-
             cell = ws.cell(row=r_idx, column=c_idx, value=value)
-            cell.alignment = Alignment(vertical="center", wrap_text=False)
+            cell.font = data_font
             cell.border = border
+            
+            # Applica allineamento (numeri e contatti a sinistra, score/fonte al centro)
+            if c_idx <= len(cols):
+                col_name_str = cols[c_idx - 1]
+                if col_name_str in ["Score Email", "Fonte Email"]:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                else:
+                    cell.alignment = Alignment(horizontal="left", vertical="center")
+            
+            # Applica zebra striping di base
+            if row_fill:
+                cell.fill = row_fill
 
-            # Colore email
+            # Colore email specifico
             if email_col_idx and c_idx == email_col_idx:
                 if fonte_val == "Apify":
                     cell.fill = fill_apify
-                    cell.font = Font(color="1A5276")  # blu scuro
+                    cell.font = Font(name=font_family, size=10, color="1E8449")
                 elif fonte_val == "Hunter":
                     cell.fill = fill_hunter
-                    cell.font = Font(color="784212")  # marrone
+                    cell.font = Font(name=font_family, size=10, color="B7950B")
                 else:
                     cell.fill = fill_none
-                    cell.font = Font(color="909090", italic=True)
+                    cell.font = Font(name=font_family, size=10, color="7F8C8D", italic=True)
 
             # Link cliccabile per profilo LinkedIn
             if link_col_idx and c_idx == link_col_idx and value:
                 cell.value = value
                 cell.hyperlink = value
-                cell.font = Font(color="1155CC", underline="single")
+                cell.font = link_font
 
     # Larghezze automatiche (cap a 50)
     for c_idx, col_name in enumerate(cols, 1):
@@ -229,33 +254,43 @@ def load_scraped_archive():
     return scraped_urls
 
 def _build_excel_scoring(df: pd.DataFrame) -> io.BytesIO:
-    """Genera un Excel formattato per la tab Scoring: intestazioni in grassetto,
-    larghezze auto, link LinkedIn cliccabili, e colori per la priorità (A = verde chiaro, B = giallo chiaro)."""
+    """Genera un Excel formattato con estetica premium per la tab Scoring: font Segoe UI,
+    righe alternate, link LinkedIn cliccabili, e colori per la priorità (A = verde, B = giallo)."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Lead_Scoring"
 
-    # Stili
-    header_font = Font(bold=True, color="FFFFFF", size=11)
-    header_fill = PatternFill(start_color="2E4053", end_color="2E4053", fill_type="solid")
+    # Stili Font e Allineamenti
+    font_family = "Segoe UI"
+    header_font = Font(name=font_family, bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid") # Slate 800 premium
     header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    
+    data_font = Font(name=font_family, size=10, color="1E293B")
+    link_font = Font(name=font_family, size=10, color="1B4F72", underline="single")
+    
+    # Bordi leggeri (estetica pulita)
     border = Border(
-        left=Side(style="thin", color="BDBDBD"),
-        right=Side(style="thin", color="BDBDBD"),
-        top=Side(style="thin", color="BDBDBD"),
-        bottom=Side(style="thin", color="BDBDBD")
+        left=Side(style="thin", color="E2E8F0"),
+        right=Side(style="thin", color="E2E8F0"),
+        top=Side(style="thin", color="E2E8F0"),
+        bottom=Side(style="thin", color="E2E8F0")
     )
 
-    fill_priority_a = PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid")  # verde
-    fill_priority_b = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid")  # giallo
-    fill_priority_c = PatternFill(start_color="F2F3F4", end_color="F2F3F4", fill_type="solid")  # grigio
+    # Colori priorità (tonalità pastello soft)
+    fill_priority_a = PatternFill(start_color="E2F0D9", end_color="E2F0D9", fill_type="solid")  # verde salvia
+    fill_priority_b = PatternFill(start_color="FCF3CF", end_color="FCF3CF", fill_type="solid")  # giallo paglierino
+    fill_priority_c = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")  # grigio neutro
+    
+    # Zebra striping per le righe alternate
+    fill_zebra  = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")   # Slate 50 ultra-soft
 
     cols = list(df.columns)
     priority_col_idx = cols.index("Priorità") + 1 if "Priorità" in cols else None
     link_col_idx = cols.index("Profilo LinkedIn") + 1 if "Profilo LinkedIn" in cols else None
 
-    # Intestazioni
-    ws.row_dimensions[1].height = 30
+    # Intestazioni (altezza 28pt)
+    ws.row_dimensions[1].height = 28
     for c_idx, col_name in enumerate(cols, 1):
         cell = ws.cell(row=1, column=c_idx, value=col_name)
         cell.font = header_font
@@ -263,32 +298,51 @@ def _build_excel_scoring(df: pd.DataFrame) -> io.BytesIO:
         cell.alignment = header_align
         cell.border = border
 
-    # Dati
+    # Dati (altezza 20pt)
     for r_idx, row_vals in enumerate(df.values.tolist(), 2):
+        ws.row_dimensions[r_idx].height = 20
         priority_val = ""
         if priority_col_idx:
             priority_val = str(row_vals[priority_col_idx - 1])
 
+        # Alternanza righe per leggibilità
+        is_even = (r_idx % 2 == 0)
+        row_fill = fill_zebra if is_even else None
+
         for c_idx in range(1, len(cols) + 1):
             value = row_vals[c_idx - 1]
             cell = ws.cell(row=r_idx, column=c_idx, value=value)
-            cell.alignment = Alignment(vertical="center", wrap_text=False)
+            cell.font = data_font
             cell.border = border
 
-            # Colore per priorità
+            # Applica allineamento (numeri e contatti a sinistra, priorità/score al centro)
+            col_name_str = cols[c_idx - 1]
+            if col_name_str in ["Priorità", "Score", "Score Email", "Location"]:
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            else:
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+
+            # Applica zebra striping di base
+            if row_fill:
+                cell.fill = row_fill
+
+            # Colore per priorità specifico
             if priority_col_idx and c_idx == priority_col_idx:
                 if priority_val == "A":
                     cell.fill = fill_priority_a
+                    cell.font = Font(name=font_family, size=10, color="1E8449", bold=True)
                 elif priority_val == "B":
                     cell.fill = fill_priority_b
+                    cell.font = Font(name=font_family, size=10, color="B7950B", bold=True)
                 else:
                     cell.fill = fill_priority_c
+                    cell.font = Font(name=font_family, size=10, color="7F8C8D")
 
             # Link cliccabile per profilo LinkedIn
             if link_col_idx and c_idx == link_col_idx and value:
                 cell.value = value
                 cell.hyperlink = value
-                cell.font = Font(color="1155CC", underline="single")
+                cell.font = link_font
 
     # Larghezze automatiche (cap a 50)
     for c_idx, col_name in enumerate(cols, 1):

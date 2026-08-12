@@ -1201,8 +1201,26 @@ with tab1:
         kw_data = json.load(f)
         
     # Inizializza session_state per parola chiave
+    # Inizializza session_state per parola chiave
     if "selected_keyword" not in st.session_state:
         st.session_state["selected_keyword"] = "Buyer Food"
+
+    def clean_keyword_search_name(name):
+        clean = name.strip()
+        if " " in clean and not (clean.startswith('"') and clean.endswith('"')):
+            clean = f'"{clean}"'
+        return clean
+
+    def add_keyword_to_selection(kw_name):
+        clean_kw = clean_keyword_search_name(kw_name)
+        current = st.session_state.get("selected_keyword", "").strip()
+        if current:
+            # Evita duplicati
+            if clean_kw not in current:
+                st.session_state["selected_keyword"] = f"{current} OR {clean_kw}"
+        else:
+            st.session_state["selected_keyword"] = clean_kw
+        st.rerun()
         
     with st.expander("🌍 Mercato Internazionale (GDO / Export)", expanded=False):
         int_keywords = kw_data.get("internazionale", [])
@@ -1210,8 +1228,7 @@ with tab1:
             cols_int = st.columns(3)
             for idx, kw in enumerate(int_keywords):
                 if cols_int[idx % 3].button(kw, key=f"kw_int_btn_{idx}"):
-                    st.session_state["selected_keyword"] = kw
-                    st.rerun()
+                    add_keyword_to_selection(kw)
         else:
             st.info("Nessuna parola chiave per il mercato internazionale.")
                 
@@ -1221,8 +1238,7 @@ with tab1:
             cols_it = st.columns(3)
             for idx, kw in enumerate(it_keywords):
                 if cols_it[idx % 3].button(kw, key=f"kw_it_btn_{idx}"):
-                    st.session_state["selected_keyword"] = kw
-                    st.rerun()
+                    add_keyword_to_selection(kw)
         else:
             st.info("Nessuna parola chiave per il mercato italiano.")
             

@@ -1359,6 +1359,15 @@ with tab1:
                 st.session_state["location_input_val"] = "Canada"
                 st.rerun()
 
+    with st.expander("🇵🇹 PORTOGALLO", expanded=False):
+        pt_chains = ["Sonae (Continente)", "Pingo Doce", "Auchan Portugal", "Makro Portugal", "Minipreço", "Intermarché Portugal"]
+        cols_pt = st.columns(3)
+        for idx, co in enumerate(pt_chains):
+            if cols_pt[idx % 3].button(co, key=f"btn_co_pt_{idx}"):
+                st.session_state["selected_company"] = co
+                st.session_state["location_input_val"] = "Portugal"
+                st.rerun()
+
     with st.expander("🇺🇸 STATI UNITI (USA)", expanded=False):
         usa_gourmet = [
             "Whole Foods Market", "Trader Joe's", "Eataly USA", "Wegmans",

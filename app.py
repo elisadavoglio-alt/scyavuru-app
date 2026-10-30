@@ -421,9 +421,17 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
     from apify_client import ApifyClient
     client = ApifyClient(apify_api_key)
 
-    search_query = ruolo
-    if azienda:
-        search_query += f" {azienda}"
+    # Parentesi obbligatorie: senza, "A OR B OR C Migros" viene letto da LinkedIn
+    # come "A OR B OR (C AND Migros)" e il filtro azienda si applica solo all'ultimo ruolo.
+    ruolo_q = ruolo.strip()
+    azienda_q = (azienda or "").strip()
+    if " OR " in ruolo_q.upper() and not (ruolo_q.startswith("(") and ruolo_q.endswith(")")):
+        ruolo_q = f"({ruolo_q})"
+    if " OR " in azienda_q.upper() and not (azienda_q.startswith("(") and azienda_q.endswith(")")):
+        azienda_q = f"({azienda_q})"
+    search_query = ruolo_q
+    if azienda_q:
+        search_query += f" {azienda_q}"
 
     run_input = {
         "searchQuery": search_query,

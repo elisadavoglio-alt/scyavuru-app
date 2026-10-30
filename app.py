@@ -429,9 +429,7 @@ def run_search(ruolo: str, azienda: str, location: str, max_profili: int, apify_
         ruolo_q = f"({ruolo_q})"
     if " OR " in azienda_q.upper() and not (azienda_q.startswith("(") and azienda_q.endswith(")")):
         azienda_q = f"({azienda_q})"
-    search_query = ruolo_q
-    if azienda_q:
-        search_query += f" {azienda_q}"
+    search_query = f"{ruolo_q} AND {azienda_q}" if azienda_q else ruolo_q
 
     run_input = {
         "searchQuery": search_query,

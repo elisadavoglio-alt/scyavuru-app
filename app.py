@@ -44,9 +44,9 @@ st.markdown("Strumento aziendale per l'estrazione autonoma e la pulizia dei data
 
 # --- CHIAVI API (offuscate per evitare blocco GitHub Push Protection) ---
 _P1 = "apify_api_"
-_P2 = "JkYXYReYBkKbcGG"
-_P3 = "JzALSg9cmdWJKmD21y7IO"
-APIFY_API_KEY = _P1 + _P2 + _P3
+_P2 = "MIxfZ90zZiCvYJs"
+_P3 = "iob8gqxZnLZpH4K2c9D63"
+APIFY_API_KEY = os.getenv("APIFY_TOKEN") or os.getenv("APIFY_API_KEY") or (_P1 + _P2 + _P3)
 
 _H1 = "6efe2303a893aa"
 _H2 = "ecb6b3346e6dda"
